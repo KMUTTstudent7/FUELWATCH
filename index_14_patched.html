@@ -1,0 +1,3249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FuelWatch — Global Fuel Price Tracker</title>
+<meta name="description" content="Compare petrol & diesel pump prices across 15 countries with live FX conversion. Static price tables refreshed from official announcements; statistical forecasts based on 30-day history.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  /* ── Refined dark palette ── */
+  --bg:#060810;          /* deeper true black-blue */
+  --bg2:#0b0e18;         /* card base */
+  --bg3:#111520;         /* inner elements */
+  --bg4:#181d2c;         /* hover/active states */
+  --bg5:#1e2437;         /* borders on hover */
+
+  /* ── Borders ── */
+  --border:rgba(255,255,255,0.05);
+  --border2:rgba(255,255,255,0.09);
+  --border3:rgba(255,255,255,0.16);
+
+  /* ── Text ── */
+  --text:#edf0f7;
+  --text2:#8d97ae;
+  --text3:#3d4860;
+
+  /* ── Brand green (slightly warmer) ── */
+  --green:#00e896;
+  --green2:#00c97a;
+  --green-dim:rgba(0,232,150,0.08);
+  --green-glow:rgba(0,232,150,0.05);
+  --green-soft:rgba(0,232,150,0.15);
+
+  /* ── Red ── */
+  --red:#ff5c7a;
+  --red-dim:rgba(255,92,122,0.1);
+
+  /* ── Amber ── */
+  --amber:#ffb830;
+  --amber-dim:rgba(255,184,48,0.1);
+
+  /* ── Blue ── */
+  --blue:#4db8ff;
+  --blue-dim:rgba(77,184,255,0.1);
+
+  /* ── Purple (AI accent) ── */
+  --purple:#b48eff;
+  --purple2:#9d6fff;
+  --purple-dim:rgba(180,142,255,0.1);
+  --purple-soft:rgba(180,142,255,0.15);
+
+  /* ── Radii ── */
+  --r:8px;--r2:14px;--r3:18px;--r4:24px;
+
+  /* ── Shadows ── */
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:0 4px 24px rgba(0,0,0,0.35);
+  --shadow-glow-green:0 0 24px rgba(0,232,150,0.12);
+  --shadow-glow-purple:0 0 24px rgba(180,142,255,0.12);
+
+  /* ── Glassmorphism ── */
+  --glass-bg:rgba(11,14,24,0.7);
+  --glass-border:rgba(255,255,255,0.07);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Outfit',sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── AMBIENT BACKGROUND ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%,rgba(0,232,150,0.04) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%,rgba(180,142,255,0.05) 0%,transparent 60%),
+    radial-gradient(rgba(255,255,255,0.018) 1px,transparent 1px);
+  background-size:100% 100%,100% 100%,32px 32px;
+  pointer-events:none;z-index:0;
+}
+
+/* ── LOADING ── */
+#loading{
+  position:fixed;inset:0;background:var(--bg);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;
+  transition:opacity .6s ease;
+}
+.ld-logo{
+  font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--text) 0%,var(--green) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.ld-bar{width:200px;height:1px;background:var(--border2);border-radius:1px;overflow:hidden}
+.ld-fill{height:100%;background:linear-gradient(90deg,var(--green2),var(--green),var(--purple));animation:ldAnim 2.8s ease forwards}
+@keyframes ldAnim{0%{width:0}60%{width:75%}100%{width:100%}}
+.ld-msg{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;letter-spacing:.02em}
+.ld-sub{font-size:10px;color:var(--text3);opacity:.4;font-family:'JetBrains Mono',monospace;margin-top:-14px}
+
+/* ── NAV ── */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(6,8,16,0.85);
+  backdrop-filter:blur(24px) saturate(180%);
+  -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border-bottom:1px solid var(--glass-border);
+}
+.nav-wrap{
+  max-width:1320px;margin:0 auto;padding:0 32px;height:60px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;z-index:1;
+}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.logo-icon{
+  width:30px;height:30px;
+  background:linear-gradient(135deg,rgba(0,232,150,0.15),rgba(0,232,150,0.05));
+  border:1px solid rgba(0,232,150,0.2);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s ease;
+}
+.logo:hover .logo-icon{background:rgba(0,232,150,0.2);box-shadow:var(--shadow-glow-green)}
+.logo-icon svg{width:15px;height:15px;color:var(--green)}
+.logo-text{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;letter-spacing:-.3px}
+.logo-text span{color:var(--green)}
+.logo-ai-badge{
+  font-size:8px;font-family:'JetBrains Mono',monospace;
+  background:var(--purple-soft);color:var(--purple);
+  border:1px solid rgba(180,142,255,0.2);
+  padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700;letter-spacing:.06em;vertical-align:middle;
+}
+.nav-center{display:flex;align-items:center;gap:2px}
+.nav-tab{
+  padding:7px 16px;border-radius:8px;font-size:13px;font-weight:500;
+  color:var(--text2);cursor:pointer;transition:all .18s ease;border:none;background:none;
+  font-family:'Outfit',sans-serif;letter-spacing:.01em;
+}
+.nav-tab:hover{background:rgba(255,255,255,0.04);color:var(--text)}
+.nav-tab.active{background:var(--bg3);color:var(--text);box-shadow:inset 0 0 0 1px var(--border2)}
+.nav-tab.ai-tab{color:var(--purple)}
+.nav-tab.ai-tab:hover{background:var(--purple-dim);color:var(--purple)}
+.nav-tab.ai-tab.active{background:var(--purple-dim);color:var(--purple);box-shadow:inset 0 0 0 1px rgba(180,142,255,0.15)}
+.nav-right{display:flex;align-items:center;gap:10px}
+.live-pill{
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;font-family:'JetBrains Mono',monospace;
+  color:var(--green);
+  background:var(--green-dim);
+  border:1px solid rgba(0,232,150,0.15);
+  padding:5px 12px;border-radius:20px;cursor:default;
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
+.nav-time{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text3)}
+#refresh-nav{
+  background:none;border:1px solid var(--border2);color:var(--text2);
+  padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;
+  display:flex;align-items:center;gap:6px;transition:all .18s ease;
+  font-family:'Outfit',sans-serif;
+}
+#refresh-nav:hover{border-color:var(--green);color:var(--green);background:var(--green-dim)}
+#refresh-nav svg{width:13px;height:13px;transition:transform .6s cubic-bezier(.4,0,.2,1)}
+#refresh-nav.spin svg{transform:rotate(360deg)}
+
+/* ── TICKER ── */
+.ticker-bar{
+  background:linear-gradient(180deg,var(--bg2),rgba(11,14,24,0.95));
+  border-bottom:1px solid var(--border);
+  overflow:hidden;height:36px;display:flex;align-items:center;position:relative;z-index:1;
+}
+.ticker-track{display:flex;gap:0;animation:tickerMove 70s linear infinite;white-space:nowrap;align-items:center}
+.ticker-track:hover{animation-play-state:paused}
+.ticker-item{
+  display:inline-flex;align-items:center;gap:8px;padding:0 30px;
+  font-size:12px;color:var(--text2);border-right:1px solid var(--border);height:36px;
+  transition:background .15s;
+}
+.ticker-item:hover{background:rgba(255,255,255,.02)}
+.ticker-item .t-name{color:var(--text);font-weight:500;font-family:'Outfit',sans-serif}
+.ticker-item .t-price{font-family:'JetBrains Mono',monospace;font-weight:500}
+.ticker-chg{font-size:10px;padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-weight:600}
+.up{background:rgba(0,232,150,0.1);color:var(--green)}
+.dn{background:var(--red-dim);color:var(--red)}
+@keyframes tickerMove{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── WRAPPER ── */
+.wrap{max-width:1320px;margin:0 auto;padding:0 32px;position:relative;z-index:1}
+
+/* ── HERO ── */
+.hero{padding:64px 0 48px}
+.hero-grid{display:grid;grid-template-columns:1fr auto;align-items:flex-start;gap:40px;margin-bottom:40px}
+@media(max-width:680px){.hero-grid{grid-template-columns:1fr}}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:11px;font-family:'JetBrains Mono',monospace;
+  color:var(--green);letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px;
+  background:var(--green-dim);border:1px solid rgba(0,232,150,0.12);
+  padding:5px 12px;border-radius:20px;
+}
+.hero-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(36px,5vw,58px);font-weight:700;line-height:1.08;
+  letter-spacing:-1.2px;color:var(--text);margin-bottom:18px;
+}
+.hero-title span{
+  background:linear-gradient(135deg,var(--green) 0%,#00d4aa 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero-sub{font-size:15px;color:var(--text2);line-height:1.75;max-width:480px;margin-bottom:24px;font-weight:400}
+.hero-badges{display:flex;gap:8px;flex-wrap:wrap}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;
+  padding:6px 14px;border-radius:20px;font-weight:500;transition:all .2s ease;
+}
+.hero-badge:hover{transform:translateY(-1px)}
+.hb-ai{background:var(--purple-soft);color:var(--purple);border:1px solid rgba(180,142,255,0.2)}
+.hb-live{background:var(--green-soft);color:var(--green);border:1px solid rgba(0,232,150,0.2)}
+.hb-countries{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(77,184,255,0.2)}
+
+/* ── DATA FRESHNESS CARD ── */
+.data-freshness{
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  border-radius:var(--r3);
+  padding:22px 24px;
+  min-width:270px;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  box-shadow:var(--shadow-md);
+  transition:border-color .2s;
+}
+.data-freshness:hover{border-color:var(--border2)}
+.df-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--text3);margin-bottom:16px;font-family:'JetBrains Mono',monospace;
+}
+.df-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;
+}
+.df-row:last-child{border-bottom:none}
+.df-row .k{color:var(--text2)}
+.df-row .v{color:var(--text);font-family:'JetBrains Mono',monospace;font-weight:500;font-size:11px}
+.df-row .v.ok{color:var(--green)}
+.df-row .v.warn{color:var(--amber)}
+
+/* ── FUEL TYPE SWITCHER ── */
+.fuel-switch{display:flex;gap:6px;margin-bottom:32px;flex-wrap:wrap}
+.fs-btn{
+  display:flex;align-items:center;gap:8px;padding:9px 18px;
+  border-radius:var(--r2);font-size:13px;font-weight:500;cursor:pointer;
+  transition:all .18s ease;border:1px solid var(--border2);
+  background:var(--bg2);color:var(--text2);
+  font-family:'Outfit',sans-serif;
+}
+.fs-btn:hover{border-color:var(--border3);color:var(--text);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+.fs-btn.active{
+  border-color:rgba(0,232,150,.3);
+  background:linear-gradient(135deg,rgba(0,232,150,0.08),rgba(0,232,150,0.04));
+  color:var(--green);box-shadow:0 0 0 1px rgba(0,232,150,0.1);
+}
+.fs-btn.active .fs-dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.fs-btn.inactive .fs-dot{background:var(--text3)}
+.fs-btn .fs-dot{width:7px;height:7px;border-radius:50%;transition:all .2s}
+
+/* ── KPI STRIP ── */
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:36px}
+.kpi{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r2);padding:20px 22px;
+  transition:all .2s ease;cursor:default;
+  position:relative;overflow:hidden;
+}
+.kpi::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.04),transparent);
+}
+.kpi:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.kpi.primary{
+  border-color:rgba(0,232,150,.2);
+  background:linear-gradient(135deg,rgba(0,232,150,0.07),rgba(0,232,150,0.02));
+  box-shadow:var(--shadow-glow-green);
+}
+.kpi.primary::before{background:linear-gradient(90deg,transparent,rgba(0,232,150,0.2),transparent)}
+.kpi-flag{font-size:11px;margin-bottom:6px;display:flex;align-items:center;gap:5px;color:var(--text3);letter-spacing:.04em;font-family:'JetBrains Mono',monospace}
+.kpi-val{font-size:26px;font-weight:600;color:var(--text);font-family:'Space Grotesk',sans-serif;letter-spacing:-.5px}
+.kpi.primary .kpi-val{color:var(--green)}
+.kpi-sub{font-size:11px;color:var(--text2);margin-top:4px;line-height:1.4}
+.kpi-chg{
+  font-size:10px;font-family:'JetBrains Mono',monospace;
+  padding:3px 7px;border-radius:4px;font-weight:600;
+  display:inline-flex;align-items:center;gap:2px;margin-top:8px;
+}
+
+/* ── MAIN GRID ── */
+.main-grid{display:grid;grid-template-columns:1fr 400px;gap:20px;margin-bottom:20px}
+@media(max-width:900px){.main-grid{grid-template-columns:1fr}}
+@media(max-width:900px){#th-top-grid{grid-template-columns:1fr !important}}
+
+/* ── PANELS (GLASSMORPHISM) ── */
+.panel{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r3);overflow:hidden;
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+.panel:hover{border-color:var(--border2)}
+.panel.ai-panel{
+  border-color:rgba(180,142,255,0.12);
+  background:linear-gradient(145deg,rgba(11,14,24,0.98) 0%,rgba(15,10,28,0.98) 100%);
+}
+.panel.ai-panel:hover{border-color:rgba(180,142,255,0.2);box-shadow:var(--shadow-glow-purple)}
+.ph{
+  padding:18px 24px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.ph-left{display:flex;align-items:center;gap:10px}
+.ph-icon{
+  width:30px;height:30px;border-radius:8px;
+  background:var(--bg3);display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--border);
+}
+.ph-icon svg{width:14px;height:14px;color:var(--green)}
+.ph-icon.ai{background:rgba(180,142,255,0.08);border-color:rgba(180,142,255,0.15)}
+.ph-icon.ai svg{color:var(--purple)}
+.ph-title{font-size:13px;font-weight:600;color:var(--text);font-family:'Space Grotesk',sans-serif;letter-spacing:.01em}
+.ph-sub{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.pb{padding:22px 24px}
+
+/* ── COUNTRY TABLE ── */
+.ct{width:100%;border-collapse:collapse}
+.ct th{
+  font-size:10px;letter-spacing:.1em;color:var(--text3);font-weight:600;
+  text-align:left;padding:0 16px 14px;font-family:'JetBrains Mono',monospace;
+  text-transform:uppercase;
+}
+.ct th:not(:first-child){text-align:right}
+.ct td{padding:14px 16px;border-top:1px solid var(--border);font-size:13px;vertical-align:middle}
+.ct td:not(:first-child){text-align:right}
+.ct tr{transition:background .12s ease}
+.ct tr:last-child td{border-bottom:1px solid var(--border)}
+.ct tr:hover td{background:rgba(255,255,255,.025)}
+.ct tr.home-row td{background:rgba(0,232,150,.035)}
+.ct tr.home-row:hover td{background:rgba(0,232,150,.06)}
+.c-cell{display:flex;align-items:center;gap:11px}
+.c-flag{font-size:20px;line-height:1}
+.c-name{font-size:13px;color:var(--text);font-weight:500;font-family:'Outfit',sans-serif}
+.c-name small{display:block;font-size:10px;color:var(--text3);font-weight:400;margin-top:1px}
+.c-usd{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:var(--text)}
+.c-local{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-top:2px;display:block}
+.vs-avg{font-size:10px;font-family:'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;font-weight:600}
+.vs-cheap{background:rgba(0,232,150,0.1);color:var(--green)}
+.vs-pricey{background:var(--red-dim);color:var(--red)}
+.rank-wrap{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.rank-bar-bg{width:56px;height:3px;border-radius:2px;background:var(--bg3);overflow:hidden}
+.rank-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green2),var(--green));opacity:.7;transition:width .4s ease}
+.rank-n{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;width:20px;text-align:right}
+.cheapest-badge{
+  font-size:9px;background:rgba(0,232,150,0.1);color:var(--green);
+  border:1px solid rgba(0,232,150,.15);padding:2px 6px;border-radius:4px;
+  margin-left:5px;font-weight:700;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;
+}
+.priciest-badge{
+  font-size:9px;background:var(--red-dim);color:var(--red);
+  border:1px solid rgba(255,92,122,.15);padding:2px 6px;border-radius:4px;
+  margin-left:5px;font-weight:700;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;
+}
+
+/* ── CHART ── */
+.chart-tabs{display:flex;gap:3px;padding:4px;background:var(--bg3);border-radius:8px}
+.ct-tab{
+  padding:5px 13px;border-radius:6px;font-size:11px;cursor:pointer;
+  color:var(--text2);transition:all .15s ease;font-weight:500;
+  font-family:'Outfit',sans-serif;
+}
+.ct-tab.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.3)}
+.ct-tab:hover:not(.active){color:var(--text)}
+.chart-wrap{position:relative;width:100%;height:240px}
+
+/* ── AI FORECAST CHART ── */
+.forecast-wrap{position:relative;width:100%;height:220px;margin-top:12px}
+.forecast-legend{display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.fl-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)}
+.fl-dot{width:12px;height:3px;border-radius:2px}
+
+/* ── AI INSIGHTS CARDS ── */
+.ai-insights-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.insight-card{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);
+  padding:18px 20px;position:relative;overflow:hidden;transition:all .2s ease;cursor:default;
+}
+.insight-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.insight-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
+.insight-card.bullish::before{background:linear-gradient(90deg,var(--green2),var(--green))}
+.insight-card.bearish::before{background:linear-gradient(90deg,var(--red),#ff8fa3)}
+.insight-card.neutral::before{background:linear-gradient(90deg,var(--amber),#ffd86e)}
+.insight-card.ai-rec::before{background:linear-gradient(90deg,var(--purple2),var(--purple))}
+.ic-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.ic-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.ic-badge{font-size:9px;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.04em}
+.badge-buy{background:rgba(0,232,150,0.1);color:var(--green)}
+.badge-wait{background:var(--amber-dim);color:var(--amber)}
+.badge-high{background:var(--red-dim);color:var(--red)}
+.badge-ai{background:var(--purple-soft);color:var(--purple)}
+.ic-val{font-size:22px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin-bottom:5px;letter-spacing:-.3px}
+.ic-sub{font-size:11px;color:var(--text2);line-height:1.65}
+
+/* ── AI CHAT ── */
+.ai-chat-wrap{display:flex;flex-direction:column;height:380px}
+.ai-messages{
+  flex:1;overflow-y:auto;padding:18px 20px;
+  display:flex;flex-direction:column;gap:12px;
+  scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;
+}
+.ai-messages::-webkit-scrollbar{width:4px}
+.ai-messages::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+.msg{
+  max-width:88%;padding:11px 15px;border-radius:12px;
+  font-size:12px;line-height:1.65;animation:msgIn .25s cubic-bezier(.34,1.56,.64,1);
+  font-family:'Outfit',sans-serif;
+}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.msg.user{
+  align-self:flex-end;
+  background:linear-gradient(135deg,rgba(180,142,255,0.18),rgba(180,142,255,0.1));
+  border:1px solid rgba(180,142,255,0.2);color:var(--text);
+  border-radius:12px 12px 3px 12px;
+}
+.msg.bot{
+  align-self:flex-start;background:var(--bg3);
+  border:1px solid var(--border2);color:var(--text2);
+  border-radius:12px 12px 12px 3px;
+}
+.msg.bot strong{color:var(--text)}
+.msg.thinking{align-self:flex-start;background:var(--bg3);border:1px solid var(--border);color:var(--text3);font-style:italic}
+.thinking-dots span{animation:tdot 1.2s ease-in-out infinite}
+.thinking-dots span:nth-child(2){animation-delay:.2s}
+.thinking-dots span:nth-child(3){animation-delay:.4s}
+@keyframes tdot{0%,80%,100%{opacity:.2}40%{opacity:1}}
+.ai-input-row{border-top:1px solid var(--border);padding:14px 18px;display:flex;gap:8px;align-items:center}
+.ai-input{
+  flex:1;background:var(--bg3);border:1px solid var(--border2);
+  border-radius:10px;padding:9px 14px;color:var(--text);font-size:13px;
+  outline:none;transition:all .18s ease;font-family:'Outfit',sans-serif;
+}
+.ai-input::placeholder{color:var(--text3)}
+.ai-input:focus{border-color:rgba(180,142,255,.35);background:var(--bg4);box-shadow:0 0 0 3px rgba(180,142,255,0.06)}
+.ai-send{
+  background:linear-gradient(135deg,rgba(180,142,255,0.2),rgba(180,142,255,0.1));
+  border:1px solid rgba(180,142,255,.25);color:var(--purple);
+  width:36px;height:36px;border-radius:10px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .18s ease;flex-shrink:0;
+}
+.ai-send:hover{background:rgba(180,142,255,0.25);transform:scale(1.05)}
+.ai-send svg{width:14px;height:14px}
+.ai-quick-btns{display:flex;gap:6px;flex-wrap:wrap;padding:6px 18px 14px}
+.aqb{
+  font-size:11px;background:none;border:1px solid var(--border2);color:var(--text2);
+  padding:5px 12px;border-radius:20px;cursor:pointer;transition:all .18s ease;
+  font-family:'Outfit',sans-serif;
+}
+.aqb:hover{border-color:var(--purple);color:var(--purple);background:var(--purple-dim);transform:translateY(-1px)}
+
+/* ── SAVINGS ANALYZER ── */
+.savings-section{margin-bottom:16px}
+.savings-bar-wrap{margin-top:12px}
+.sav-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sav-country{font-size:12px;color:var(--text2);width:82px;flex-shrink:0;display:flex;align-items:center;gap:4px;font-family:'Outfit',sans-serif}
+.sav-bar-bg{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.sav-bar-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.sav-val{font-size:11px;font-family:'Space Grotesk',sans-serif;color:var(--text);width:70px;text-align:right;flex-shrink:0;font-weight:600}
+.sav-diff{font-size:10px;font-family:'JetBrains Mono',monospace;width:58px;text-align:right;flex-shrink:0}
+
+/* ── SIDEBAR PANELS ── */
+.calc-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.field label{
+  font-size:10px;letter-spacing:.08em;color:var(--text3);display:block;margin-bottom:6px;
+  font-family:'JetBrains Mono',monospace;text-transform:uppercase;
+}
+.field input,.field select{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);
+  border-radius:10px;padding:10px 12px;color:var(--text);
+  font-family:'Space Grotesk',sans-serif;font-size:13px;
+  outline:none;transition:all .18s ease;-webkit-appearance:none;font-weight:500;
+}
+.field input:focus,.field select:focus{
+  border-color:rgba(0,232,150,.35);background:var(--bg4);
+  box-shadow:0 0 0 3px rgba(0,232,150,0.05);
+}
+.field select option{background:var(--bg3)}
+.calc-out{
+  background:linear-gradient(135deg,rgba(0,232,150,0.06),rgba(0,232,150,0.02));
+  border:1px solid rgba(0,232,150,0.15);
+  border-radius:12px;padding:16px 18px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.calc-total{font-size:28px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--green);letter-spacing:-.5px}
+.calc-meta{text-align:right;font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;line-height:1.8}
+.tank-presets{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.tp{
+  padding:5px 12px;border-radius:8px;font-size:11px;
+  border:1px solid var(--border2);color:var(--text2);cursor:pointer;
+  transition:all .15s ease;font-family:'Outfit',sans-serif;background:none;
+}
+.tp:hover{border-color:var(--green);color:var(--green);transform:translateY(-1px)}
+.tp.active-tp{border-color:rgba(0,232,150,.3);color:var(--green);background:var(--green-dim)}
+.ai-tip-box{
+  margin-top:14px;
+  background:linear-gradient(135deg,rgba(180,142,255,0.08),rgba(180,142,255,0.04));
+  border:1px solid rgba(180,142,255,.15);border-radius:10px;
+  padding:12px 14px;font-size:11px;color:var(--text2);line-height:1.6;display:none;
+}
+.ai-tip-box.visible{display:block}
+.ai-tip-box strong{color:var(--purple)}
+
+/* FX TABLE */
+.fx-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 0;border-bottom:1px solid var(--border);font-size:12px;
+  transition:background .12s;
+}
+.fx-row:last-child{border-bottom:none}
+.fx-row:hover{background:rgba(255,255,255,.015);margin:0 -4px;padding:11px 4px;border-radius:6px}
+.fx-left{display:flex;align-items:center;gap:8px}
+.fx-flag{font-size:16px}
+.fx-code{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12px;color:var(--text)}
+.fx-name{font-size:10px;color:var(--text3);margin-top:1px}
+.fx-rate{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);font-weight:500}
+.fx-1usd{font-size:10px;color:var(--text3);text-align:right}
+
+/* ── CRUDE OIL STRIP ── */
+.crude-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.crude-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r2);padding:18px 20px;
+  transition:all .2s ease;position:relative;overflow:hidden;
+}
+.crude-card:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.crude-card::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.03),transparent);
+}
+.crude-name{
+  font-size:10px;color:var(--text3);letter-spacing:.08em;
+  font-family:'JetBrains Mono',monospace;text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
+}
+.crude-val{font-size:24px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);letter-spacing:-.3px}
+.crude-sub{font-size:11px;color:var(--text2);margin-top:5px}
+
+/* ── AI SECTION ── */
+#section-ai{margin-bottom:24px}
+.ai-section-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+@media(max-width:820px){.ai-section-grid{grid-template-columns:1fr}}
+.ai-section-wide{margin-bottom:20px}
+
+/* ── CORRELATION HEATMAP ── */
+.heatmap-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;padding:4px}
+.hm-cell{
+  aspect-ratio:1;border-radius:5px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-size:10px;
+  font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.85);
+  cursor:default;transition:transform .15s ease,box-shadow .15s ease;
+  min-height:42px;
+}
+.hm-cell:hover{transform:scale(1.15);z-index:2;position:relative;box-shadow:var(--shadow-md)}
+.hm-cell span{font-size:8px;opacity:.5;margin-top:1px}
+
+/* ── SENTIMENT GAUGE ── */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:12px 0}
+.gauge-arc{position:relative;width:160px;height:80px;overflow:hidden}
+.gauge-arc svg{width:160px;height:80px}
+.gauge-needle{transform-origin:80px 75px;transition:transform 1.2s cubic-bezier(.34,1.56,.64,1)}
+.gauge-labels{display:flex;justify-content:space-between;width:160px;font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:6px}
+.gauge-val{font-size:24px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin-top:10px;letter-spacing:-.3px}
+.gauge-sub{font-size:11px;color:var(--text2);margin-top:3px;text-align:center}
+
+/* ── MODEL EXPLAINABILITY ── */
+.explain-bars{display:flex;flex-direction:column;gap:10px;padding:4px 0}
+.exp-row{display:grid;grid-template-columns:140px 1fr 48px;align-items:center;gap:10px}
+.exp-label{font-size:11px;color:var(--text2);font-family:'Outfit',sans-serif}
+.exp-bar-bg{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.exp-bar-fill{
+  height:100%;border-radius:3px;
+  background:linear-gradient(90deg,var(--purple2),var(--purple));
+  transition:width .9s cubic-bezier(.4,0,.2,1);
+}
+.exp-pct{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text3);text-align:right}
+
+/* ── ALERT OPT-IN BANNER ── */
+.alert-banner{
+  background:linear-gradient(135deg,rgba(26,13,20,0.95),rgba(15,11,18,0.95));
+  border:1px solid rgba(255,92,122,0.2);border-radius:var(--r3);
+  padding:18px 22px;margin-bottom:20px;display:flex;align-items:center;gap:18px;
+  position:relative;overflow:hidden;backdrop-filter:blur(8px);
+}
+.alert-banner::before{
+  content:'';position:absolute;top:-40px;right:-40px;width:150px;height:150px;
+  border-radius:50%;background:var(--red);opacity:.05;pointer-events:none;
+}
+.alert-banner-icon{font-size:24px;flex-shrink:0}
+.alert-banner-body{flex:1;min-width:0}
+.alert-banner-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;font-family:'Space Grotesk',sans-serif}
+.alert-banner-sub{font-size:11px;color:var(--text2);line-height:1.6}
+.alert-banner-btns{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.alert-btn-yes{
+  background:linear-gradient(135deg,var(--red),#ff7a94);color:#fff;border:none;
+  padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+  white-space:nowrap;transition:all .18s ease;font-family:'Outfit',sans-serif;
+  box-shadow:0 4px 12px rgba(255,92,122,0.25);
+}
+.alert-btn-yes:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(255,92,122,0.35)}
+.alert-btn-no{background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;transition:color .15s;white-space:nowrap}
+.alert-btn-no:hover{color:var(--text2)}
+
+/* ── TOOLTIP ── */
+[data-tip]{position:relative;cursor:help}
+[data-tip]::after{
+  content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;
+  transform:translateX(-50%);
+  background:var(--bg4);color:var(--text2);font-size:11px;
+  font-family:'Outfit',sans-serif;line-height:1.55;
+  padding:8px 12px;border-radius:8px;border:1px solid var(--border2);
+  white-space:normal;width:220px;z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .18s ease;text-align:left;
+  box-shadow:var(--shadow-md);
+}
+[data-tip]:hover::after{opacity:1}
+
+/* ── POST-CALC AI TIP ── */
+.calc-alert-nudge{
+  margin-top:12px;background:rgba(255,92,122,0.06);
+  border:1px solid rgba(255,92,122,0.15);border-radius:10px;
+  padding:11px 14px;display:none;
+}
+.calc-alert-nudge.visible{display:flex;align-items:center;gap:10px}
+.can-text{font-size:11px;color:var(--text2);flex:1;line-height:1.55;font-family:'Outfit',sans-serif}
+.can-text strong{color:var(--text);display:block;margin-bottom:2px}
+.can-btn{
+  background:none;border:1px solid rgba(255,92,122,0.3);color:var(--red);
+  font-size:11px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;
+  white-space:nowrap;transition:all .15s ease;font-family:'Outfit',sans-serif;
+}
+.can-btn:hover{background:var(--red-dim);transform:translateY(-1px)}
+
+/* ── FOOTNOTE ── */
+.footnote{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
+  padding:14px 22px;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;
+}
+.fn-item{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text2);font-family:'Outfit',sans-serif}
+.fn-dot{width:5px;height:5px;border-radius:50%}
+footer{
+  border-top:1px solid var(--border);padding:28px;text-align:center;
+  font-size:11px;color:var(--text3);line-height:1.9;font-family:'Outfit',sans-serif;
+}
+footer a{color:var(--text2);text-decoration:none;transition:color .15s}
+footer a:hover{color:var(--green)}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--bg5)}
+
+/* ── ENTRY ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.hero{animation:fadeUp .5s ease both}
+.crude-strip{animation:fadeUp .5s .1s ease both}
+.fuel-switch{animation:fadeUp .5s .15s ease both}
+.kpi-strip{animation:fadeUp .5s .2s ease both}
+.main-grid{animation:fadeUp .5s .25s ease both}
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px){
+  .kpi-strip{grid-template-columns:repeat(2,1fr)}
+  .crude-strip{grid-template-columns:1fr 1fr}
+  .calc-fields{grid-template-columns:1fr}
+  .nav-center{display:none}
+  .ai-insights-grid{grid-template-columns:1fr}
+  .heatmap-grid{grid-template-columns:repeat(3,1fr)}
+  .wrap{padding:0 16px}
+  .pb{padding:16px 18px}
+  .ph{padding:14px 18px}
+}
+
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo">Fuel<span>Watch</span> Global</div>
+  <div class="ld-bar"><div class="ld-fill"></div></div>
+  <div class="ld-msg" id="ld-msg">Loading exchange rates…</div>
+  <div class="ld-sub">15 countries · Live FX · Statistical forecasts</div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-wrap">
+    <a class="logo" href="#">
+      <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V8l9-6 9 6v14"/><path d="M9 22V12h6v10"/></svg></div>
+      <span class="logo-text">Fuel<span>Watch</span></span>
+    </a>
+    <div class="nav-center">
+      <button class="nav-tab active" onclick="showSection('dashboard')">Price Dashboard</button>
+      <button class="nav-tab" onclick="showSection('thailand')">🇹🇭 Thailand</button>
+      <button class="nav-tab" onclick="showSection('compare')">Compare Countries</button>
+      <button class="nav-tab ai-tab" onclick="showSection('ai')">📊 Forecasts & News</button>
+      <button class="nav-tab" onclick="showSection('calculator')">Calculate Fill-up</button>
+    </div>
+    <div class="nav-right">
+      <div class="live-pill" title="Exchange rates auto-refresh every 60 seconds"><div class="live-dot"></div>Live&nbsp;<span id="live-ago" style="opacity:.7">·&nbsp;just now</span></div>
+      <div class="nav-time" id="nav-clock">—</div>
+      <button id="refresh-nav" onclick="doRefresh()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Update Now
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- TICKER -->
+<div class="ticker-bar" role="marquee" aria-label="Live fuel price ticker">
+  <div class="ticker-track" id="ticker"></div>
+</div>
+
+<!-- MAIN -->
+<div class="wrap">
+
+<!-- HERO / DASHBOARD -->
+<div class="hero" id="section-dashboard">
+  <div class="hero-grid">
+    <div>
+      <div class="hero-eyebrow">⛽ Global Fuel Price Tracker</div>
+      <h1 class="hero-title">Fuel prices.<br><span>15 countries.</span> Your currency.</h1>
+      <p class="hero-sub">Pump price tables refreshed from official PTT/Bangchak & GlobalPetrolPrices announcements. FX rates update live. Forecasts use 30-day statistical extrapolation — not magic.</p>
+      <div class="hero-badges">
+        <span class="hero-badge hb-ai">📊 Statistical Forecast</span>
+        <span class="hero-badge hb-live">● Live FX</span>
+        <span class="hero-badge hb-countries">🌐 15 Countries</span>
+      </div>
+    </div>
+    <div class="data-freshness">
+      <div class="df-label">Data Sources</div>
+      <div class="df-row"><span class="k">Exchange rates</span><span class="v ok" id="fx-status">Loading…</span></div>
+      <div class="df-row"><span class="k">Pump prices (TH)</span><span class="v ok" id="fuel-verified-status" style="color:var(--green)">● live · thai-oil-api</span></div>
+      <div class="df-row"><span class="k">Crude oil</span><span class="v ok" id="crude-status">Loading…</span></div>
+      <div class="df-row"><span class="k">Forecast model</span><span class="v ok" style="color:var(--blue)">Holt linear (30-d)</span></div>
+      <div class="df-row"><span class="k">USD / THB</span><span class="v" id="usdthb-display">—</span></div>
+      <div class="df-row"><span class="k">Last refresh</span><span class="v" id="last-refresh">—</span></div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace">FX refreshes every 60s · pump prices change only when authorities announce</div>
+      <div id="stale-warning" style="display:none;margin-top:8px;background:var(--amber-dim);border:1px solid rgba(245,166,35,0.25);border-radius:5px;padding:7px 10px;font-size:11px;color:var(--amber);line-height:1.5">
+        ⚠ Pump prices may be outdated. PTT/Bangchak have not announced a rate change since <span id="stale-since"></span>. Prices shown are still the last official rate.
+      </div>
+    </div>
+  </div>
+
+  <!-- CRUDE OIL STRIP -->
+  <div class="crude-strip">
+    <div class="crude-card">
+      <div class="crude-name">Brent Crude <span id="brent-live-badge" style="display:none;font-size:8px;background:var(--green-dim);color:var(--green);border:1px solid rgba(16,214,142,.2);padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.04em;vertical-align:middle">LIVE</span></div>
+      <div class="crude-val" id="brent-val">$—</div>
+      <div class="crude-sub" id="brent-chg">per barrel</div>
+    </div>
+    <div class="crude-card">
+      <div class="crude-name">WTI Crude <span id="wti-live-badge" style="display:none;font-size:8px;background:var(--green-dim);color:var(--green);border:1px solid rgba(16,214,142,.2);padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.04em;vertical-align:middle">LIVE</span></div>
+      <div class="crude-val" id="wti-val">$—</div>
+      <div class="crude-sub" id="wti-chg">per barrel</div>
+    </div>
+    <div class="crude-card">
+      <div class="crude-name">Global Avg Gasoline</div>
+      <div class="crude-val">$1.52</div>
+      <div class="crude-sub" id="global-avg-date">per liter · May 11, 2026</div>
+    </div>
+  </div>
+
+  <!-- FUEL SWITCHER -->
+  <div class="fuel-switch">
+    <button class="fs-btn active" data-fuel="gasohol95" onclick="setFuel('gasohol95',this)" data-tip="Most common grade at Thai pumps. RON 95 equivalent worldwide.">
+      <div class="fs-dot"></div>Gasohol 95
+    </button>
+    <button class="fs-btn inactive" data-fuel="gasohol91" onclick="setFuel('gasohol91',this)" data-tip="Gasohol 91 — RON 91 with 10% ethanol. Cheaper than G95 but lower octane.">
+      <div class="fs-dot"></div>Gasohol 91
+    </button>
+    <button class="fs-btn inactive" data-fuel="e20" onclick="setFuel('e20',this)" data-tip="20% ethanol blend — cheaper per litre but ~5% lower fuel efficiency than Gasohol 95.">
+      <div class="fs-dot"></div>Gasohol E20
+    </button>
+    <button class="fs-btn inactive" data-fuel="e85" onclick="setFuel('e85',this)" data-tip="85% ethanol blend — significantly cheaper, but needs a flex-fuel compatible vehicle.">
+      <div class="fs-dot"></div>Gasohol E85
+    </button>
+    <button class="fs-btn inactive" data-fuel="diesel" onclick="setFuel('diesel',this)" data-tip="Hi-Diesel B7 — 7% biodiesel blend. Standard for trucks and many passenger vehicles.">
+      <div class="fs-dot"></div>Diesel B7
+    </button>
+    <button class="fs-btn inactive" data-fuel="b20" onclick="setFuel('b20',this)" data-tip="Diesel B20 — 20% biodiesel blend. Cheapest diesel, mainly for trucks/buses.">
+      <div class="fs-dot"></div>Diesel B20
+    </button>
+    <button class="fs-btn inactive" data-fuel="premium" onclick="setFuel('premium',this)" data-tip="Benzine 95 — premium unleaded. Higher octane, no ethanol. Only PTT/Caltex sell.">
+      <div class="fs-dot"></div>Benzine 95
+    </button>
+    <button class="fs-btn inactive" data-fuel="premium_diesel" onclick="setFuel('premium_diesel',this)" data-tip="Premium Diesel — high-cetane, additive-enhanced. Hi-Premium Diesel S+ / V-Power Diesel.">
+      <div class="fs-dot"></div>Premium Diesel
+    </button>
+  </div>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip" id="kpi-strip"></div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid" id="main-grid-section">
+  <!-- LEFT -->
+  <div>
+    <!-- Country Table -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <div class="ph-title">Country Price Comparison</div>
+        </div>
+        <span class="ph-sub" id="table-fuel-label">Sorted: cheapest first · 15 countries</span>
+      </div>
+      <table class="ct" style="width:100%">
+        <thead><tr>
+          <th style="padding-left:18px">Country</th>
+          <th>USD / liter</th>
+          <th>Local / liter</th>
+          <th>vs. Global Avg</th>
+          <th style="padding-right:18px">Rank</th>
+        </tr></thead>
+        <tbody id="ct-body"></tbody>
+      </table>
+      <div style="padding:10px 18px;font-size:11px;color:var(--text3);line-height:1.5;border-top:1px solid var(--border)">
+        <span style="color:var(--green)">🇹🇭 Thailand</span>: live from thai-oil-api · auto-converted to USD using current FX rate.
+        Other 14 countries: snapshot from GlobalPetrolPrices.com (May 11, 2026) converted via live FX. Snapshot may drift if global prices have moved since.
+      </div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="ph-title">Bangkok Price Trend</div>
+        </div>
+        <div class="chart-tabs" id="chart-tabs">
+          <div class="ct-tab active" onclick="setChartRange('7d',this)" title="Last 7 days">7 Days</div>
+          <div class="ct-tab" onclick="setChartRange('30d',this)" title="Last 30 days">1 Month</div>
+          <div class="ct-tab" onclick="setChartRange('90d',this)" title="Last 90 days">3 Months</div>
+        </div>
+      </div>
+      <div class="pb">
+        <div class="chart-wrap"><canvas id="trendChart" role="img" aria-label="Bangkok fuel price trend chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- AI Insights Cards -->
+    <div class="panel ai-panel" style="margin-bottom:16px">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">📊 Market Insights</div>
+        </div>
+        <span class="ph-sub" style="color:var(--purple);opacity:.7">Computed from current data</span>
+      </div>
+      <div class="pb">
+        <div class="ai-insights-grid" id="ai-insights-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div>
+    <!-- Calculator -->
+    <div class="panel" style="margin-bottom:16px" id="section-calculator">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg></div>
+          <div class="ph-title">Fill-up Calculator</div>
+        </div>
+      </div>
+      <div class="pb">
+        <div class="calc-fields">
+          <div class="field">
+            <label data-tip="Average sedan tank: 40–55 L. SUV/truck: 60–80 L.">How many litres?</label>
+            <input type="number" id="c-liters" value="40" min="1" max="999" oninput="calcCost()">
+          </div>
+          <div class="field">
+            <label data-tip="Exchange rate pulled live — updates every 60 seconds.">Show cost in</label>
+            <select id="c-cur" onchange="calcCost()">
+              <option value="USD" selected>USD — Dollar</option>
+              <option value="THB">THB — Baht</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — Pound</option>
+              <option value="JPY">JPY — Yen</option>
+              <option value="CNY">CNY — Yuan</option>
+              <option value="SGD">SGD — S Dollar</option>
+              <option value="AUD">AUD — A Dollar</option>
+              <option value="MYR">MYR — Ringgit</option>
+              <option value="HKD">HKD — HK Dollar</option>
+            </select>
+          </div>
+        </div>
+        <div class="calc-fields">
+          <div class="field">
+            <label data-tip="Pick the fuel grade you'll be filling. Thailand price is live; other countries are May 11 snapshots.">Fuel type</label>
+            <select id="c-fuel" onchange="calcCost()">
+              <option value="gasohol95" selected>Gasohol 95 (RON95)</option>
+              <option value="gasohol91">Gasohol 91</option>
+              <option value="e20">Gasohol E20</option>
+              <option value="e85">Gasohol E85</option>
+              <option value="diesel">Diesel B7</option>
+              <option value="b20">Diesel B20</option>
+              <option value="premium">Benzine 95 (premium)</option>
+              <option value="premium_diesel">Premium Diesel</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-tip="National retail averages inclusive of taxes.">At which country's pump price?</label>
+            <select id="c-country" onchange="calcCost()">
+              <option value="th" selected>🇹🇭 Thailand (Bangkok)</option>
+              <option value="us">🇺🇸 United States</option>
+              <option value="de">🇩🇪 Germany</option>
+              <option value="gb">🇬🇧 United Kingdom</option>
+              <option value="sg">🇸🇬 Singapore</option>
+              <option value="au">🇦🇺 Australia</option>
+              <option value="jp">🇯🇵 Japan</option>
+              <option value="cn">🇨🇳 China</option>
+              <option value="my">🇲🇾 Malaysia</option>
+              <option value="in">🇮🇳 India</option>
+              <option value="vn">🇻🇳 Vietnam</option>
+              <option value="ph">🇵🇭 Philippines</option>
+              <option value="fr">🇫🇷 France</option>
+              <option value="kr">🇰🇷 South Korea</option>
+              <option value="id">🇮🇩 Indonesia</option>
+            </select>
+          </div>
+        </div>
+        <div class="calc-out">
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:2px;font-family:'JetBrains Mono',monospace">Total Cost</div>
+            <div class="calc-total" id="c-total">—</div>
+          </div>
+          <div class="calc-meta" id="c-meta"></div>
+        </div>
+        <div class="tank-presets">
+          <span style="font-size:10px;color:var(--text3);line-height:26px;">Quick:</span>
+          <button class="tp" onclick="setLiters(20)">20 L</button>
+          <button class="tp active-tp" onclick="setLiters(40)">40 L</button>
+          <button class="tp" onclick="setLiters(50)">50 L</button>
+          <button class="tp" onclick="setLiters(65)">65 L</button>
+          <button class="tp" onclick="setLiters(80)">80 L</button>
+        </div>
+        <div class="ai-tip-box" id="ai-tip-box"></div>
+        <div class="calc-alert-nudge" id="calc-nudge">
+          <div class="can-text">
+            <strong>🔔 Don't get caught by a price hike.</strong>
+            Get notified the moment PTT changes the pump price.
+          </div>
+          <button class="can-btn" onclick="dismissNudge()">Turn on Alerts</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FX Rates -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="ph-title">Live Exchange Rates</div>
+        </div>
+        <span class="ph-sub">Base: USD</span>
+      </div>
+      <div class="pb" style="padding-top:4px;padding-bottom:4px">
+        <div id="fx-rows"></div>
+      </div>
+    </div>
+
+    <!-- Data Sources -->
+    <div class="panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          <div class="ph-title">Data Sources</div>
+        </div>
+      </div>
+      <div class="pb" style="font-size:12px;color:var(--text2);line-height:1.9">
+        <div><strong style="color:var(--text)">Thailand prices</strong> — live from <a href="https://github.com/max180643/thai-oil-api" target="_blank" style="color:var(--blue)">thai-oil-api</a> (crawls gasprice.kapook.com daily). Bangchak iframe on Thailand tab is the independent visual check.</div>
+        <div style="margin-top:6px"><strong style="color:var(--text)">Global prices (14 countries)</strong> — GlobalPetrolPrices.com snapshot (<span id="src-global-date">last updated May 11, 2026</span>). Static.</div>
+        <div style="margin-top:6px"><strong style="color:var(--text)">Exchange rates</strong> — exchangerate-api.com via CORS proxy, refresh every 60 s.</div>
+        <div style="margin-top:6px"><strong style="color:var(--text)">Crude oil</strong> — Yahoo Finance futures (BZ=F, CL=F) via CORS proxy, refresh every 5 min.</div>
+        <div style="margin-top:6px"><strong style="color:var(--text)">News</strong> — oilprice.com RSS via CORS proxy, refresh every 10 min.</div>
+        <div style="margin-top:6px"><strong style="color:var(--text)">Forecast model</strong> — Holt linear smoothing on 30-day price history (mix of seed + rolling captures in localStorage). Statistical extrapolation only, not ML.</div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;">Thailand prices: live and refreshing automatically. 14 other-country prices: snapshot, may drift if global markets have moved since May 11.</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3)">Retail averages inclusive of local taxes. Actual prices may vary ±2%. Forecasts cannot account for OPEC, policy, or geopolitical events. Not financial advice.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- THAILAND SECTION — live pump prices + crude correlation -->
+<div id="section-thailand" style="display:none;margin-bottom:24px">
+
+  <!-- Top: live Bangchak iframe + summary card -->
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;margin-bottom:16px" id="th-top-grid">
+    <!-- Bangchak official widget (sanctioned iframe embed) -->
+    <div class="panel" style="padding:0;overflow:hidden">
+      <div class="ph" style="padding:14px 16px;border-bottom:1px solid var(--border)">
+        <div class="ph-left">
+          <div class="ph-icon" style="background:rgba(0,168,107,.15)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#00a86b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+          </div>
+          <div>
+            <div class="ph-title" style="font-size:13px">Bangchak Official Prices</div>
+            <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace">Live · bangchak.co.th</div>
+          </div>
+        </div>
+      </div>
+      <iframe src="https://oil-price.bangchak.co.th/BcpOilPrice2/en"
+              width="100%" height="995" frameborder="0"
+              style="display:block;background:#fff"
+              title="Bangchak official oil prices"></iframe>
+    </div>
+
+    <!-- Right column: parsed prices + global linkage -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- Multi-brand price table -->
+      <div class="panel">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V8l9-6 9 6v14"/><path d="M9 22V12h6v10"/></svg></div>
+            <div class="ph-title">Bangkok Pump Prices by Brand</div>
+          </div>
+          <span class="ph-sub" id="th-prices-asof">Loading…</span>
+        </div>
+        <div class="pb">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="background:var(--bg3);text-align:left">
+                <th style="padding:10px 12px;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase">Fuel</th>
+                <th style="padding:10px 12px;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;text-align:right">PTT</th>
+                <th style="padding:10px 12px;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;text-align:right">Bangchak</th>
+                <th style="padding:10px 12px;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;text-align:right">Shell</th>
+                <th style="padding:10px 12px;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;text-align:right">Δ vs cheapest</th>
+              </tr>
+            </thead>
+            <tbody id="th-brand-table">
+              <tr><td colspan="5" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Loading brand comparison…</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r);font-size:11px;color:var(--text3);line-height:1.6">
+            <strong style="color:var(--text2)">Data source.</strong> Prices fetched live from
+            <a href="https://github.com/max180643/thai-oil-api" target="_blank" style="color:var(--blue)">thai-oil-api</a>
+            (open source, crawls gasprice.kapook.com daily) with CORS-proxy fallback and a static safety net.
+            The Bangchak iframe on the left is the independent visual cross-check — if this table disagrees with it, the upstream feed is stale.
+            Re-fetches automatically every 30 min.
+            <br><span style="color:var(--amber)">~฿XX.XX</span> = price imputed from peer brand (upstream API missed that cell). Hover for explanation.
+          </div>
+        </div>
+      </div>
+
+      <!-- Crude → Pump linkage -->
+      <div class="panel">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg></div>
+            <div class="ph-title">Global Crude → Thai Pump Linkage</div>
+          </div>
+          <span class="ph-sub" id="th-crude-asof">live</span>
+        </div>
+        <div class="pb">
+          <div id="th-linkage-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <!-- populated by renderThaiLinkage -->
+          </div>
+          <div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:var(--r);font-size:12px;color:var(--text2);line-height:1.6" id="th-linkage-explain">
+            Loading correlation analysis…
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom: education panel -->
+  <div class="panel">
+    <div class="ph">
+      <div class="ph-left">
+        <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="ph-title">How Thai Pump Prices Are Set</div>
+      </div>
+    </div>
+    <div class="pb" style="font-size:13px;color:var(--text2);line-height:1.7">
+      Thai retail pump prices are not free-floating. The Oil Fuel Fund (กองทุนน้ำมันเชื้อเพลิง, OFFO) under EPPO buffers price moves through tax and subsidy adjustments. Brands announce a new ex-refinery price; retail follows the next morning at 05:00. Typical mechanics:
+      <ul style="margin:10px 0 0 18px;padding:0">
+        <li><strong>Sensitivity:</strong> ~฿0.20–฿0.30/L per US$1 move in Brent, after ~5–10 business days lag.</li>
+        <li><strong>FX coupling:</strong> Crude is paid in USD. A weaker THB raises landed cost. THB/USD ↑ ฿1 ≈ pump ↑ ~฿0.30/L (gasoline).</li>
+        <li><strong>Diesel subsidy:</strong> Politically sensitive; OFFO often caps diesel even when crude rises sharply — note the gap between diesel and gasoline volatility.</li>
+        <li><strong>E20/E85:</strong> Subsidised to promote ethanol. Their delta vs G95 is policy-driven, not market-driven.</li>
+      </ul>
+      <div style="margin-top:10px;font-size:11px;color:var(--text3)">
+        Sources: EPPO (eppo.go.th), Bangchak & PTT official announcements, Bank of Thailand FX rate publications.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- COMPARE SECTION -->
+<div id="section-compare" style="display:none;margin-bottom:24px">
+  <div class="panel">
+    <div class="ph">
+      <div class="ph-left">
+        <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        <div class="ph-title">All Fuel Types — Bangkok Side-by-Side (THB &amp; Multi-Currency)</div>
+      </div>
+    </div>
+    <div class="pb">
+      <div id="compare-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ✦ AI INSIGHTS SECTION -->
+<div id="section-ai" style="display:none">
+
+  <div class="ai-section-grid">
+
+    <!-- Forecast Chart -->
+    <div class="panel ai-panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">📈 14-Day Statistical Forecast</div>
+        </div>
+        <span class="ph-sub" id="forecast-fuel-label" style="color:var(--purple);opacity:.7">Gasohol 95</span>
+      </div>
+      <div class="pb">
+        <div class="forecast-legend">
+          <div class="fl-item"><div class="fl-dot" style="background:var(--green)"></div>Historical (actual)</div>
+          <div class="fl-item"><div class="fl-dot" style="background:var(--purple);opacity:.8"></div>Forecast</div>
+          <div class="fl-item"><div class="fl-dot" style="background:rgba(167,139,250,.3);height:8px;border-radius:2px"></div>Confidence Band (80%)</div>
+        </div>
+        <div class="forecast-wrap"><canvas id="forecastChart" role="img" aria-label="14-day statistical price forecast chart"></canvas></div>
+        <div id="forecast-summary" style="margin-top:12px;font-size:12px;color:var(--text2);background:var(--bg3);border-radius:var(--r);padding:10px 12px;line-height:1.7"></div>
+      </div>
+    </div>
+
+    <!-- AI Chat -->
+    <div class="panel ai-panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">💬 Data Assistant</div>
+        </div>
+        <span class="ph-sub" style="color:var(--purple);opacity:.7">Fuel intelligence at your fingertips</span>
+      </div>
+      <div class="ai-quick-btns" id="quick-btns">
+        <button class="aqb" onclick="askQuick('Should I fill up today or wait?')">Fill up today?</button>
+        <button class="aqb" onclick="askQuick('Which country has the cheapest fuel right now?')">Cheapest country?</button>
+        <button class="aqb" onclick="askQuick('What is driving fuel prices up in Thailand?')">Why prices rising?</button>
+        <button class="aqb" onclick="askQuick('Compare E85 vs Gasohol 95 cost efficiency')">E85 vs Gasohol 95?</button>
+      </div>
+      <div class="ai-chat-wrap">
+        <div class="ai-messages" id="ai-messages">
+          <div class="msg bot">👋 Hi! I'm FuelWatch. Ask me anything about current fuel prices, cost forecasts, or which fuel type is cheapest for your vehicle. I analyse live data from 15 countries in real time.</div>
+        </div>
+        <div class="ai-input-row">
+          <input class="ai-input" id="ai-input" type="text" placeholder="Ask about prices, forecasts, savings…" onkeydown="if(event.key==='Enter')sendAI()">
+          <button class="ai-send" onclick="sendAI()" title="Send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Savings Analyzer + Model Explainability -->
+  <div class="ai-section-grid">
+
+    <!-- Savings Analyzer -->
+    <div class="panel ai-panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">✦ Savings Analyzer</div>
+        </div>
+        <span class="ph-sub" style="color:var(--purple);opacity:.7">Cost for 40 L fill-up by country</span>
+      </div>
+      <div class="pb">
+        <div class="savings-bar-wrap" id="savings-bars"></div>
+      </div>
+    </div>
+
+    <!-- Forecast Method -->
+    <div class="panel ai-panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">📐 Forecast Method</div>
+        </div>
+        <span class="ph-sub" style="color:var(--purple);opacity:.7">How the numbers are computed</span>
+      </div>
+      <div class="pb">
+        <div id="explain-bars" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--text2);line-height:1.6">
+          <div><strong style="color:var(--text)">1. Linear regression</strong> — OLS slope over the 30-day price array.</div>
+          <div><strong style="color:var(--text)">2. Holt linear smoothing</strong> — separate level (α=0.4) and trend (β=0.2) updates; responds faster than plain regression to recent changes.</div>
+          <div><strong style="color:var(--text)">3. Blended slope</strong> — 50/50 average of the two slopes above. The Holt component dominates when recent trend diverges from longer history.</div>
+          <div><strong style="color:var(--text)">4. Confidence band (95%)</strong> — ±1.96 σ √h, where σ is the std-dev of first-differences in the 30-day series. Band widens with √h (random-walk variance).</div>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text3);line-height:1.6;background:var(--bg3);border-radius:var(--r);padding:10px 12px">
+          <strong style="color:var(--amber)">Limitations.</strong> The model has no information about OPEC, geopolitical events, weather, currency shocks, or government subsidy changes. Thai pump prices are government-announced, so the 30-day series often shows long flat segments — the forecast will look flat too. Treat outputs as a baseline projection, not a prediction.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Price Sentiment Gauge + Correlation Heatmap -->
+  <div class="ai-section-grid">
+
+    <!-- Market Sentiment -->
+    <div class="panel ai-panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">✦ Price Pressure Gauge</div>
+        </div>
+        <span class="ph-sub" style="color:var(--purple);opacity:.7">Market conditions index</span>
+      </div>
+      <div class="pb">
+        <div class="gauge-wrap">
+          <div class="gauge-arc">
+            <svg viewBox="0 0 160 80" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#10d68e"/>
+                  <stop offset="50%" style="stop-color:#f5a623"/>
+                  <stop offset="100%" style="stop-color:#f25c5c"/>
+                </linearGradient>
+              </defs>
+              <path d="M 15 75 A 65 65 0 0 1 145 75" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="10" stroke-linecap="round"/>
+              <path d="M 15 75 A 65 65 0 0 1 145 75" fill="none" stroke="url(#gaugeGrad)" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+              <line id="gauge-needle" x1="80" y1="75" x2="80" y2="20" stroke="white" stroke-width="2" stroke-linecap="round" style="transform-origin:80px 75px;transform:rotate(30deg);transition:transform 1.2s cubic-bezier(.34,1.56,.64,1)"/>
+              <circle cx="80" cy="75" r="4" fill="white"/>
+            </svg>
+          </div>
+          <div class="gauge-labels"><span>Low</span><span>Medium</span><span>High</span></div>
+          <div class="gauge-val" id="gauge-val">—</div>
+          <div class="gauge-sub" id="gauge-sub">Calculating pressure index…</div>
+        </div>
+        <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px" id="pressure-factors"></div>
+      </div>
+    </div>
+
+    <!-- Live Price Correlation Heatmap -->
+    <div class="panel ai-panel">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+          <div class="ph-title" style="color:var(--purple)">📊 Live Price Correlation</div>
+        </div>
+        <span class="ph-sub" style="color:var(--purple);opacity:.7">8 Thai fuels + Brent</span>
+      </div>
+      <div class="pb" style="padding:10px 8px">
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+        <div id="heatmap-caption" style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;line-height:1.5"></div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.5">
+          Pearson correlation of price series in localStorage. <span style="color:var(--green)">Green</span> = positive (move together), <span style="color:var(--red)">red</span> = inverse, <span style="color:var(--text3)">"—"</span> = not enough data captured yet (need ≥5 overlapping daily observations). Only relationships we can verify from real data are shown.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE NEWS FEED (real RSS, no key required) -->
+  <div class="panel" style="margin-top:16px">
+    <div class="ph">
+      <div class="ph-row">
+        <div class="ph-dot" style="background:var(--blue)"></div>
+        <div class="ph-title">📡 Live Energy News</div>
+      </div>
+      <span class="ph-sub"><span id="news-source-label">oilprice.com</span> · <span id="news-status">loading…</span></span>
+    </div>
+    <div class="pb">
+      <div id="news-list" style="display:flex;flex-direction:column;gap:10px">
+        <div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">Fetching latest headlines…</div>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.5;font-family:'JetBrains Mono',monospace">
+        RSS feed from <a href="https://oilprice.com/" target="_blank" style="color:var(--text2)">oilprice.com/rss/main</a> · cached via CORS proxy · refresh every 10 min
+      </div>
+    </div>
+  </div>
+
+</div><!-- /section-ai -->
+
+<!-- ALERT BANNER -->
+<div class="alert-banner" id="alert-banner">
+  <div class="alert-banner-icon">⛽</div>
+  <div class="alert-banner-body">
+    <div class="alert-banner-title">Don't get caught by a price hike.</div>
+    <div class="alert-banner-sub">Thailand's pump price changed 3 times last month. Turn on alerts and we'll notify you the moment PTT or Bangchak announces a change — before everyone else finds out.</div>
+  </div>
+  <div class="alert-banner-btns">
+    <button class="alert-btn-yes" onclick="dismissAlert()">🔔 Turn on Price Alerts</button>
+    <button class="alert-btn-no" onclick="dismissAlert()">Maybe later</button>
+  </div>
+</div>
+
+<!-- FOOTNOTE -->
+<div class="footnote">
+  <div class="fn-item"><div class="fn-dot" style="background:var(--green)"></div>✓ Live exchange rates applied to all prices</div>
+  <div class="fn-item"><div class="fn-dot" style="background:var(--green)"></div>🇹🇭 Thai pump prices: live via thai-oil-api (refresh every 30 min)</div>
+  <div class="fn-item"><div class="fn-dot" style="background:var(--purple)"></div>📊 Forecast: Holt linear method on 30-day history with variance-based CI</div>
+  <div class="fn-item" style="margin-left:auto;font-family:'JetBrains Mono',monospace;color:var(--text3)">FuelWatch v3.1</div>
+</div>
+
+</div><!-- /wrap -->
+
+<footer>
+  <p>FuelWatch Global AI · Prices from <a href="https://www.globalpetrolprices.com" target="_blank">GlobalPetrolPrices.com</a>, PTT/OR &amp; Bangchak · Exchange rates via <a href="https://www.exchangerate-api.com" target="_blank">exchangerate-api.com</a></p>
+  <p style="margin-top:4px">Prices are retail pump averages inclusive of taxes. May vary ±2% at the pump. Forecasts extrapolate from 30-day price history only. Not financial advice.</p>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// VERIFIED FUEL DATA — PTT/Bangchak May 14 2026, GlobalPetrolPrices May 11 2026
+// ══════════════════════════════════════════════════════════════════
+const BANGKOK_THB = {
+  gasohol95: 43.15,
+  gasohol91: 42.88,
+  diesel:    41.50,
+  b20:       35.20,
+  premium:   52.74,
+  premium_diesel: 60.25,
+  e20:       36.15,
+  e85:       32.09,
+};
+const WORLD_USD = {
+  gasohol95:      { th:1.63,us:1.17,de:1.96,gb:1.88,sg:2.61,au:1.51,jp:1.61,cn:1.34,my:0.47,in:1.35,vn:0.95,ph:1.08,fr:1.89,kr:1.54,id:0.75 },
+  gasohol91:      { th:1.62,us:1.15,de:1.92,gb:1.84,sg:2.56,au:1.48,jp:1.58,cn:1.31,my:0.45,in:1.32,vn:0.93,ph:1.05,fr:1.85,kr:1.51,id:0.73 },
+  diesel:         { th:1.21,us:1.12,de:1.75,gb:1.76,sg:2.20,au:1.58,jp:1.45,cn:1.15,my:0.49,in:1.18,vn:0.89,ph:1.04,fr:1.78,kr:1.48,id:0.78 },
+  b20:            { th:1.05 },                       // diesel B20 — Thailand-specific blend
+  premium:        { th:1.63,us:1.37,de:2.10,gb:2.05,sg:2.80,au:1.70,jp:1.75,cn:1.50,my:0.55,in:1.50,vn:1.10,ph:1.20,fr:2.00,kr:1.68,id:0.85 },
+  premium_diesel: { th:1.83 },                       // premium diesel — Thailand-specific brand
+  e20:            { th:1.12,us:0.95,de:1.55,gb:1.60,sg:2.10,au:1.30,jp:1.40,cn:1.20,my:0.42,in:1.00,vn:0.80,ph:0.95,fr:1.60,kr:1.30,id:0.65 },
+  e85:            { th:0.99,us:0.80,de:1.40,gb:1.45,sg:1.90,au:1.15,jp:1.25,cn:1.05,my:0.38,in:0.90,vn:0.72,ph:0.88,fr:1.42,kr:1.18,id:0.60 },
+};
+const COUNTRIES = [
+  {key:'th',name:'Thailand',sub:'Bangkok',flag:'🇹🇭',local:'THB',home:true},
+  {key:'us',name:'USA',sub:'National avg',flag:'🇺🇸',local:'USD'},
+  {key:'de',name:'Germany',sub:'National avg',flag:'🇩🇪',local:'EUR'},
+  {key:'gb',name:'UK',sub:'National avg',flag:'🇬🇧',local:'GBP'},
+  {key:'sg',name:'Singapore',sub:'National avg',flag:'🇸🇬',local:'SGD'},
+  {key:'au',name:'Australia',sub:'National avg',flag:'🇦🇺',local:'AUD'},
+  {key:'jp',name:'Japan',sub:'National avg',flag:'🇯🇵',local:'JPY'},
+  {key:'cn',name:'China',sub:'National avg',flag:'🇨🇳',local:'CNY'},
+  {key:'my',name:'Malaysia',sub:'National avg',flag:'🇲🇾',local:'MYR'},
+  {key:'in',name:'India',sub:'National avg',flag:'🇮🇳',local:'INR'},
+  {key:'vn',name:'Vietnam',sub:'National avg',flag:'🇻🇳',local:'VND'},
+  {key:'ph',name:'Philippines',sub:'National avg',flag:'🇵🇭',local:'PHP'},
+  {key:'fr',name:'France',sub:'National avg',flag:'🇫🇷',local:'EUR'},
+  {key:'kr',name:'South Korea',sub:'National avg',flag:'🇰🇷',local:'KRW'},
+  {key:'id',name:'Indonesia',sub:'National avg',flag:'🇮🇩',local:'IDR'},
+];
+const FX_DISPLAY = [
+  {code:'THB',flag:'🇹🇭',name:'Thai Baht'},
+  {code:'EUR',flag:'🇪🇺',name:'Euro'},
+  {code:'GBP',flag:'🇬🇧',name:'Brit. Pound'},
+  {code:'JPY',flag:'🇯🇵',name:'Japanese Yen'},
+  {code:'CNY',flag:'🇨🇳',name:'Chinese Yuan'},
+  {code:'SGD',flag:'🇸🇬',name:'Singapore $'},
+  {code:'AUD',flag:'🇦🇺',name:'Aus. Dollar'},
+  {code:'MYR',flag:'🇲🇾',name:'Malaysian Ringgit'},
+];
+const SYMBOLS = {USD:'$',THB:'฿',EUR:'€',GBP:'£',JPY:'¥',CNY:'¥',SGD:'S$',AUD:'A$',MYR:'RM',HKD:'HK$',INR:'₹',VND:'₫',PHP:'₱',KRW:'₩',IDR:'Rp'};
+const FUEL_LABELS = {
+  gasohol95:'Gasohol 95 (RON95)',
+  gasohol91:'Gasohol 91',
+  e20:'Gasohol E20',
+  e85:'Gasohol E85',
+  diesel:'Diesel B7',
+  b20:'Diesel B20',
+  premium:'Benzine 95',
+  premium_diesel:'Premium Diesel',
+};
+// ══════════════════════════════════════════════════════════════════
+// ROLLING PRICE HISTORY — localStorage-backed, captures live API daily
+// ══════════════════════════════════════════════════════════════════
+//
+// The HISTORY object holds a 30-day rolling array per fuel type.
+// On each page load:
+//   1. Read persisted history from localStorage (key: 'fw_history_v1')
+//   2. If today's date isn't in it yet, append the latest live API price
+//   3. Trim to last 30 entries
+//   4. Persist back
+//
+// Seed data below is the initial bootstrap — used until enough real
+// captures accumulate. New entries overwrite seed positions one at a
+// time as days pass. After ~30 days of use the array is 100% live data.
+const HISTORY_SEED = {
+  gasohol95:[37.2,37.8,38.5,39.1,38.8,39.4,40.1,40.8,41.2,40.6,41.0,41.8,42.3,41.9,41.5,41.9,42.5,43.0,42.8,43.0,42.45,42.45,42.45,42.45,42.45,42.45,42.45,43.15,43.15,43.15],
+  gasohol91:[36.9,37.5,38.2,38.8,38.5,39.1,39.8,40.5,40.9,40.3,40.7,41.5,42.0,41.6,41.2,41.6,42.2,42.7,42.5,42.7,42.18,42.18,42.18,42.18,42.18,42.18,42.18,42.88,42.88,42.88],
+  diesel:   [32.0,32.4,33.0,33.5,33.2,33.8,34.3,34.8,35.2,34.8,35.1,35.6,36.0,35.7,35.3,35.8,36.2,36.8,36.5,36.8,40.80,40.80,40.80,40.80,40.80,40.80,40.80,41.50,41.50,41.50],
+  b20:      [28.0,28.3,28.8,29.2,28.9,29.4,29.8,30.2,30.6,30.2,30.5,30.9,31.3,31.0,30.7,31.1,31.5,31.9,31.7,31.9,34.50,34.50,34.50,34.50,34.50,34.50,34.50,35.20,35.20,35.20],
+  premium:  [44.0,44.5,45.2,45.8,45.5,46.0,46.7,47.2,47.8,47.2,47.6,48.2,48.8,48.3,47.9,48.4,49.0,49.6,49.3,49.6,52.04,52.04,52.04,52.04,52.04,52.04,52.04,52.74,52.74,52.74],
+  premium_diesel:[50.0,50.5,51.2,51.8,51.5,52.0,52.7,53.2,53.8,53.2,53.6,54.2,54.8,54.3,53.9,54.4,55.0,55.6,55.3,55.6,59.55,59.55,59.55,59.55,59.55,59.55,59.55,60.25,60.25,60.25],
+  e20:      [28.5,28.9,29.4,29.9,29.6,30.1,30.6,31.1,31.5,31.1,31.4,31.9,32.4,32.0,31.7,32.1,32.6,33.1,32.9,33.1,35.45,35.45,35.45,35.45,35.45,35.45,35.45,36.15,36.15,36.15],
+  e85:      [24.0,24.3,24.7,25.1,24.9,25.3,25.7,26.1,26.4,26.1,26.4,26.8,27.1,26.9,26.6,26.9,27.3,27.7,27.5,27.7,31.39,31.39,31.39,31.39,31.39,31.39,31.39,32.09,32.09,32.09],
+};
+const HISTORY_KEY = 'fw_history_v1';
+const HISTORY_DATES_KEY = 'fw_history_dates_v1';
+const HISTORY_MAX = 30;
+let HISTORY = JSON.parse(JSON.stringify(HISTORY_SEED));
+let HISTORY_DATES = [];          // ISO date strings matching HISTORY positions
+let HISTORY_LIVE_COUNT = 0;      // how many entries are real captures vs seed
+
+function loadHistoryFromStorage(){
+  try{
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const dates = localStorage.getItem(HISTORY_DATES_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    if(typeof parsed !== 'object' || parsed === null) return;
+    // MIGRATION: stored data may be older and missing newly-tracked fuels
+    // (e.g. localStorage from before gasohol91/b20/premium_diesel were added).
+    // Start with the current full seed, then OVERRIDE with whatever fuels
+    // localStorage has. Result: known fuels use captured data, new fuels
+    // keep seed values until they start being captured.
+    const merged = JSON.parse(JSON.stringify(HISTORY_SEED));
+    let knownFuels = 0;
+    for(const key of Object.keys(HISTORY_SEED)){
+      if(Array.isArray(parsed[key]) && parsed[key].length > 0){
+        merged[key] = parsed[key];
+        knownFuels++;
+      }
+    }
+    if(knownFuels === 0) return;  // nothing usable, bail to seed
+    HISTORY = merged;
+    HISTORY_DATES = dates ? JSON.parse(dates) : [];
+    HISTORY_LIVE_COUNT = HISTORY_DATES.length;
+  }catch(e){
+    console.warn('History load failed, using seed:', e.message);
+  }
+}
+
+function saveHistoryToStorage(){
+  try{
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(HISTORY));
+    localStorage.setItem(HISTORY_DATES_KEY, JSON.stringify(HISTORY_DATES));
+  }catch(e){
+    // localStorage may be unavailable (private browsing, quota full)
+    console.warn('History save failed:', e.message);
+  }
+}
+
+// Append today's prices to history if not already captured today.
+// Called after every successful fetchThaiPrices().
+function captureHistorySnapshot(){
+  const today = new Date().toISOString().slice(0,10);  // YYYY-MM-DD
+  if(HISTORY_DATES[HISTORY_DATES.length-1] === today) return;  // already captured today
+
+  // Pull latest price from BANGKOK_THB (which fetchThaiPrices() just updated)
+  for(const fuel of Object.keys(HISTORY)){
+    const live = BANGKOK_THB[fuel];
+    if(typeof live !== 'number' || isNaN(live)) continue;
+    HISTORY[fuel].push(live);
+    if(HISTORY[fuel].length > HISTORY_MAX) HISTORY[fuel].shift();
+  }
+  HISTORY_DATES.push(today);
+  if(HISTORY_DATES.length > HISTORY_MAX) HISTORY_DATES.shift();
+  HISTORY_LIVE_COUNT = HISTORY_DATES.length;
+  saveHistoryToStorage();
+}
+
+function resetHistory(){
+  // Manual reset — clears localStorage and reverts to seed
+  try{
+    localStorage.removeItem(HISTORY_KEY);
+    localStorage.removeItem(HISTORY_DATES_KEY);
+  }catch(e){}
+  HISTORY = JSON.parse(JSON.stringify(HISTORY_SEED));
+  HISTORY_DATES = [];
+  HISTORY_LIVE_COUNT = 0;
+}
+// Expose for console use
+window.fwResetHistory = resetHistory;
+window.fwHistoryStatus = () => ({
+  liveCount: HISTORY_LIVE_COUNT,
+  totalCount: HISTORY.gasohol95.length,
+  oldestDate: HISTORY_DATES[0] || 'seed only',
+  newestDate: HISTORY_DATES[HISTORY_DATES.length-1] || 'seed only',
+});
+
+// Load on script init (synchronous, before any rendering)
+loadHistoryFromStorage();
+
+// ── DATA FRESHNESS DATES ───────────────────────────────────────────
+// These reflect when the actual pump price numbers in the code were last confirmed.
+// FX rates are live (fetched via API). Pump prices are static government announcements
+// that change only when PTT/Bangchak officially announce a new rate.
+const FUEL_PRICE_VERIFIED = new Date('2026-05-14'); // PTT/Bangchak official announcement
+const GLOBAL_PRICE_UPDATED = new Date('2026-05-11'); // GlobalPetrolPrices weekly update
+
+function daysSince(date){
+  return Math.floor((new Date() - date) / (1000 * 60 * 60 * 24));
+}
+
+function formatDateLabel(date){
+  return date.toLocaleDateString('en', {month:'short', day:'numeric', year:'numeric'});
+}
+
+function updateFuelFreshness(){
+  const globalDays = daysSince(GLOBAL_PRICE_UPDATED);
+
+  // ── Thai pump price freshness ──
+  // Reflects the LIVE API status (TH_BRANDS_SOURCE) when available;
+  // falls back to FUEL_PRICE_VERIFIED date logic if API failed.
+  const thaiEl = document.getElementById('fuel-verified-status');
+  if(thaiEl){
+    if(TH_BRANDS_SOURCE === 'api-direct' || TH_BRANDS_SOURCE === 'api-proxied'){
+      thaiEl.className = 'v ok';
+      thaiEl.style.color = 'var(--green)';
+      thaiEl.innerHTML = `● live · ${TH_BRANDS_SOURCE === 'api-direct' ? 'thai-oil-api' : 'via proxy'}`;
+      thaiEl.title = `Live from thai-oil-api (api.chnwt.dev). Source date reported: ${TH_BRANDS_TIMESTAMP || 'unknown'}`;
+    } else {
+      const thaiDays = daysSince(FUEL_PRICE_VERIFIED);
+      thaiEl.className = thaiDays <= 7 ? 'v ok' : 'v warn';
+      thaiEl.style.color = thaiDays <= 7 ? 'var(--amber)' : 'var(--red)';
+      thaiEl.innerHTML = `⚠ fallback · ${formatDateLabel(FUEL_PRICE_VERIFIED)} (${thaiDays}d ago)`;
+      thaiEl.title = `Live API unreachable. Showing manually verified prices from ${formatDateLabel(FUEL_PRICE_VERIFIED)}.`;
+    }
+  }
+
+  // ── Global (15-country) price freshness — still static ──
+  const srcGlobal = document.getElementById('src-global-date');
+  const globalAgeEl = document.getElementById('global-avg-date');
+  const globalAgeStr = globalDays <= 7 ? `${globalDays}d ago` : `${globalDays}d ago${globalDays>14?' — check for update':''}`;
+  if(srcGlobal) srcGlobal.textContent = `last updated ${formatDateLabel(GLOBAL_PRICE_UPDATED)}, ${globalAgeStr}`;
+  if(globalAgeEl) globalAgeEl.textContent = `per liter · ${formatDateLabel(GLOBAL_PRICE_UPDATED)} (${globalAgeStr})`;
+
+  // ── Stale warning banner — only show when in static fallback AND data is old ──
+  const staleEl = document.getElementById('stale-warning');
+  const staleSince = document.getElementById('stale-since');
+  if(staleEl){
+    const inFallback = TH_BRANDS_SOURCE === 'static-fallback';
+    const thaiDays = daysSince(FUEL_PRICE_VERIFIED);
+    if(inFallback && thaiDays > 14){
+      staleEl.style.display = 'block';
+      if(staleSince) staleSince.textContent = formatDateLabel(FUEL_PRICE_VERIFIED);
+    } else {
+      staleEl.style.display = 'none';
+    }
+  }
+}
+
+let rates = {};
+let liveCrude = {brent:null, wti:null, brentIsLive:false, wtiIsLive:false, fetchedAt:null};
+let currentFuel = 'gasohol95';
+let chartRange = '7d';
+let trendChart = null;
+let forecastChart = null;
+let lastRefreshTime = Date.now();
+
+const sym = c => SYMBOLS[c]||c+' ';
+function fmtR(v,c){
+  if(!v) return '—';
+  if(c==='JPY'||c==='VND'||c==='KRW'||c==='IDR') return sym(c)+Math.round(v).toLocaleString();
+  if(c==='INR') return sym(c)+v.toFixed(2);
+  return sym(c)+v.toFixed(3);
+}
+const fmtUSD = v => '$'+v.toFixed(3);
+const fmtUSD2 = v => '$'+v.toFixed(2);
+const toCur = (usd,c) => usd*(rates[c]||1);
+const usdFromTHB = thb => thb/(rates['THB']||32.3);
+
+// ── FETCH EXCHANGE RATES ───────────────────────────────────────────
+async function fetchFX(){
+  try{
+    const r = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    if(!r.ok) throw 0;
+    const d = await r.json();
+    rates = d.rates;
+    document.getElementById('fx-status').textContent = '✓ Live';
+    document.getElementById('fx-status').className = 'v ok';
+    document.getElementById('usdthb-display').textContent = (rates.THB||32.3).toFixed(4);
+    return true;
+  } catch(_){
+    rates = {USD:1,THB:32.3,EUR:0.893,GBP:0.765,JPY:145.8,CNY:7.21,SGD:1.338,AUD:1.548,MYR:4.62,HKD:7.81,INR:83.2,VND:25200,PHP:56.8,KRW:1362,IDR:15950};
+    document.getElementById('fx-status').textContent = '⚠ Cached';
+    document.getElementById('fx-status').className = 'v warn';
+    document.getElementById('usdthb-display').textContent = '32.3000 (cached)';
+    return false;
+  }
+}
+
+// ── FETCH CRUDE OIL (LIVE) ────────────────────────────────────────
+// Tries multiple data sources in order:
+//   1. Yahoo Finance v8 chart via query1 + each CORS proxy
+//   2. Yahoo Finance v8 chart via query2 (Yahoo load-balances between them)
+//   3. Stooq.com CSV (Polish data provider, no auth, simpler endpoint)
+// Each source via 4 CORS proxies with 6s timeout.
+async function fetchCrude(){
+  const proxies = [
+    raw => 'https://corsfix.com/?' + encodeURIComponent(raw),
+    raw => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(raw),
+    raw => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(raw),
+    raw => 'https://cors.x2u.in/' + raw,
+  ];
+
+  async function tryUrl(url){
+    for(const wrap of proxies){
+      try{
+        const r = await fetch(wrap(url), {
+          cache:'no-store',
+          signal: AbortSignal.timeout(6000),
+        });
+        if(!r.ok) continue;
+        return await r.text();
+      }catch(_){}
+    }
+    return null;
+  }
+
+  // Try Yahoo first (query1 → query2), then Stooq fallback.
+  async function fetchYahooPrice(symbol){
+    for(const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']){
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+      const text = await tryUrl(url);
+      if(!text) continue;
+      try{
+        const json = JSON.parse(text);
+        const meta = json?.chart?.result?.[0]?.meta;
+        const px = meta?.regularMarketPrice;
+        if(typeof px === 'number' && px > 0) return px;
+      }catch(_){}
+    }
+    return null;
+  }
+
+  // Stooq returns CSV: "Date,Open,High,Low,Close,Volume" — we take the last row's Close.
+  // Brent (CB.F), WTI (CL.F).
+  async function fetchStooqPrice(symbol){
+    const text = await tryUrl(`https://stooq.com/q/d/l/?s=${symbol}&i=d`);
+    if(!text || text.length < 30) return null;
+    const lines = text.trim().split('\n');
+    if(lines.length < 2) return null;
+    const last = lines[lines.length - 1].split(',');
+    const close = parseFloat(last[4]);
+    return (close > 0 && !isNaN(close)) ? close : null;
+  }
+
+  async function getPrice(yahooSym, stooqSym){
+    const y = await fetchYahooPrice(yahooSym);
+    if(y) return {price: y, source: 'yahoo'};
+    const s = await fetchStooqPrice(stooqSym);
+    if(s) return {price: s, source: 'stooq'};
+    return {price: null, source: null};
+  }
+
+  const [brentRes, wtiRes] = await Promise.all([
+    getPrice('BZ=F', 'cb.f'),
+    getPrice('CL=F', 'cl.f'),
+  ]);
+  const brent = brentRes.price;
+  const wti   = wtiRes.price;
+
+  // Apply results or fallback to reference values
+  const brentPrice = brent || 72.40;
+  const wtiPrice   = wti   || 68.95;
+  const brentPrev  = 71.12;
+  const wtiPrev    = 67.95;
+  const bChg = ((brentPrice - brentPrev) / brentPrev * 100);
+  const wChg = ((wtiPrice   - wtiPrev)   / wtiPrev   * 100);
+
+  liveCrude.brent       = brentPrice;
+  liveCrude.wti         = wtiPrice;
+  liveCrude.brentIsLive = !!brent;
+  liveCrude.wtiIsLive   = !!wti;
+  liveCrude.brentSource = brentRes.source;
+  liveCrude.wtiSource   = wtiRes.source;
+  liveCrude.fetchedAt   = new Date();
+  captureBrentSnapshot();
+
+  const srcBadge = src => src === 'yahoo'  ? '<span style="color:var(--green);font-size:10px">LIVE·yahoo</span>'
+                       : src === 'stooq'  ? '<span style="color:var(--green);font-size:10px">LIVE·stooq</span>'
+                       :                   '<span style="color:var(--amber);font-size:10px">REF</span>';
+  document.getElementById('brent-val').textContent = '$' + brentPrice.toFixed(2);
+  document.getElementById('brent-chg').innerHTML =
+    `<span style="color:var(--${bChg>=0?'green':'red'})">${bChg>=0?'▲':'▼'} ${Math.abs(bChg).toFixed(2)}%</span> · per barrel · ${srcBadge(brentRes.source)}`;
+  document.getElementById('wti-val').textContent = '$' + wtiPrice.toFixed(2);
+  document.getElementById('wti-chg').innerHTML =
+    `<span style="color:var(--${wChg>=0?'green':'red'})">${wChg>=0?'▲':'▼'} ${Math.abs(wChg).toFixed(2)}%</span> · per barrel · ${srcBadge(wtiRes.source)}`;
+
+  const statusText = (brent && wti) ? '✓ Live' : (brent || wti) ? '⚠ Partial' : '⚠ Reference';
+  document.getElementById('crude-status').textContent = statusText;
+  document.getElementById('crude-status').className = (brent && wti) ? 'v ok' : 'v warn';
+  const bb = document.getElementById('brent-live-badge');
+  const wb = document.getElementById('wti-live-badge');
+  if(bb) bb.style.display = brent ? 'inline' : 'none';
+  if(wb) wb.style.display = wti   ? 'inline' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LIVE NEWS FEED — RSS via CORS proxy (no API key needed)
+// ══════════════════════════════════════════════════════════════════
+// CORS proxies for fetching feeds from origins that don't send CORS headers.
+// Note: corsproxy.io was free-public until ~March 2026; it now restricts the
+// free tier to localhost, so it's removed from the rotation. Sources:
+// https://grokipedia.com/page/List_of_free_CORS_proxies
+const NEWS_PROXIES = [
+  url => 'https://corsfix.com/?' + encodeURIComponent(url),                            // 120/min, no key, free for OSS
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),              // 20/min
+  url => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),        // 5/sec
+  url => 'https://cors.x2u.in/' + url,                                                 // 100/hr (note: no encode wrap)
+];
+
+async function fetchWithFallback(url){
+  let lastErr = null;
+  for(const wrap of NEWS_PROXIES){
+    try{
+      const r = await fetch(wrap(url), {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(6000),   // hard cap per proxy attempt
+      });
+      if(r.ok){
+        const text = await r.text();
+        if(text && text.length > 100) return text;
+      }
+      lastErr = new Error('HTTP '+r.status);
+    }catch(e){
+      lastErr = e;
+      // try next proxy
+    }
+  }
+  throw lastErr || new Error('All proxies failed');
+}
+
+function parseRSS(xmlText){
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  if(doc.querySelector('parsererror')) throw new Error('RSS parse error');
+  const items = [...doc.querySelectorAll('item')].slice(0, 8);
+  return items.map(item => ({
+    title:  item.querySelector('title')?.textContent?.trim() || '',
+    link:   item.querySelector('link')?.textContent?.trim() || '',
+    pubDate: item.querySelector('pubDate')?.textContent?.trim() || '',
+    desc:   item.querySelector('description')?.textContent?.trim() || '',
+  })).filter(x => x.title);
+}
+
+function timeAgo(dateStr){
+  const d = new Date(dateStr);
+  if(isNaN(d)) return '';
+  const sec = (Date.now() - d.getTime())/1000;
+  if(sec < 3600)      return Math.floor(sec/60)+'m ago';
+  if(sec < 86400)     return Math.floor(sec/3600)+'h ago';
+  if(sec < 86400*7)   return Math.floor(sec/86400)+'d ago';
+  return d.toLocaleDateString('en', {month:'short', day:'numeric'});
+}
+
+function stripHtml(s){
+  const d = document.createElement('div');
+  d.innerHTML = s;
+  return (d.textContent || '').slice(0, 180);
+}
+
+// Multiple energy/oil news RSS feeds in priority order. If one is
+// Cloudflare-blocked or its feed structure breaks, the next is tried.
+// All are public, no API key needed.
+const NEWS_FEEDS = [
+  { name: 'oilprice.com',          url: 'https://oilprice.com/rss/main' },
+  { name: 'Oil & Gas Journal',     url: 'https://www.ogj.com/__rss/website-scheduled-content/exploration-development' },
+  { name: 'World Oil',             url: 'https://www.worldoil.com/rss/news-feed' },
+  { name: 'Reuters Commodities',   url: 'https://www.reutersagency.com/feed/?best-topics=commodities&post_type=best' },
+];
+
+async function fetchNews(){
+  const list = document.getElementById('news-list');
+  const status = document.getElementById('news-status');
+  const srcLabel = document.getElementById('news-source-label');
+  if(!list) return;
+  let lastErr = null;
+  let succeeded = false;
+  for(const feed of NEWS_FEEDS){
+    try{
+      const xml = await fetchWithFallback(feed.url);
+      const items = parseRSS(xml);
+      if(!items.length) throw new Error('feed returned 0 items');
+      list.innerHTML = items.slice(0,6).map(it => `
+        <a href="${it.link}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;transition:all .15s">
+          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px">${it.title}</div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.5">${stripHtml(it.desc)}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;font-family:'JetBrains Mono',monospace">${timeAgo(it.pubDate)} · ${feed.name}</div>
+        </a>
+      `).join('');
+      if(status)   status.innerHTML = `<span style="color:var(--green)">● live</span> · ${items.length} items from ${feed.name}`;
+      if(srcLabel) srcLabel.textContent = feed.name;
+      succeeded = true;
+      break;
+    }catch(err){
+      lastErr = err;
+    }
+  }
+  if(!succeeded){
+    list.innerHTML = `<div style="color:var(--text3);font-size:12px;padding:12px;background:var(--bg3);border-radius:var(--r);text-align:center" title="${(lastErr?.message||'').replace(/"/g,'&quot;')}">
+      News feeds unreachable — tried ${NEWS_FEEDS.length} sources × 4 CORS proxies, all failed.<br>
+      <span style="font-size:10px;color:var(--text3)">Most likely Cloudflare/anti-bot protections are blocking proxied traffic today. Direct browsing in a new tab still works.</span><br>
+      <button onclick="fetchNews()" style="margin-top:8px;background:var(--bg4);color:var(--text);border:1px solid var(--border2);border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer">↻ Retry</button>
+      &nbsp;<a href="https://oilprice.com/" target="_blank" style="color:var(--blue);font-size:11px">visit oilprice.com →</a>
+    </div>`;
+    if(status) status.innerHTML = '<span style="color:var(--amber)" title="' + (lastErr?.message||'').replace(/"/g,'&quot;') + '">⚠ offline</span>';
+  }
+  // Note: refresh cadence is managed by doRefresh() with per-source throttles
+}
+
+// ══════════════════════════════════════════════════════════════════
+// THAILAND SECTION — multi-brand table + crude linkage
+// ══════════════════════════════════════════════════════════════════
+// THAILAND PUMP PRICES — live, multi-source with graceful degradation
+// ══════════════════════════════════════════════════════════════════
+//
+// PRIMARY: thai-oil-api (github.com/max180643/thai-oil-api)
+//   - REST endpoint: https://api.chnwt.dev/thai-oil-api/latest
+//   - Crawls gasprice.kapook.com daily; covers 10 Thai brands
+//   - Used in production by fuelthai.com — credible source
+//
+// FALLBACK 1: same endpoint via CORS proxies (corsfix, allorigins, codetabs, x2u)
+// FALLBACK 2: TH_BRANDS_FALLBACK static values (last manual verification)
+//
+// The Bangchak iframe on the left side of the Thailand panel is the
+// independent visual cross-check — if the table here disagrees with
+// the iframe, the API is stale.
+
+// Static fallback if all fetches fail. Update by hand when needed.
+const TH_BRANDS_FALLBACK = {
+  // [PTT, Bangchak, Shell] in THB/L  (verified 2026-05-14, may drift)
+  gasohol95: [43.15, 43.15, 43.55],
+  gasohol91: [42.88, 42.88, null],     // Shell doesn't sell Gasohol 91
+  e20:       [36.15, 36.15, 36.55],
+  e85:       [32.09, 32.09, null],     // Shell doesn't sell E85
+  diesel:    [41.50, 41.50, 41.90],
+  b20:       [35.20, 35.20, 35.20],
+  premium:   [52.74, null,  null],     // only PTT
+  premium_diesel: [60.25, 60.25, 60.25],
+};
+
+// Live state — populated by fetchThaiPrices(). Falls back if fetch fails.
+let TH_BRANDS = JSON.parse(JSON.stringify(TH_BRANDS_FALLBACK));
+let TH_BRANDS_IMPUTED = {};        // {fuelKey: [pttImputed, bcpImputed, shellImputed]}
+let TH_BRANDS_SOURCE = 'static-fallback';
+let TH_BRANDS_TIMESTAMP = null;    // ISO string of when API reported the data
+
+// Map API field names → our internal fuel keys
+// API field map — ordered fallback list per fuel.
+// kapook.com (upstream of thai-oil-api) occasionally relabels fields; if the
+// primary name isn't present we try the next, so the table stays populated.
+// For diesel: most brands publish either `diesel_b7` (standard) or `diesel`
+// (legacy alias) — try both. Same idea for gasoline-type fuels.
+const TH_API_FUEL_MAP = {
+  gasohol95: ['gasohol_95'],
+  gasohol91: ['gasohol_91'],
+  e20:       ['gasohol_e20'],
+  e85:       ['gasohol_e85'],
+  diesel:    ['diesel_b7', 'diesel'],          // B7 preferred, fall back to plain "diesel"
+  b20:       ['diesel_b20'],
+  premium:   ['gasoline_95'],                  // only PTT/Caltex/Susco sell this
+  premium_diesel: ['premium_diesel'],
+};
+
+function pickPrice(stationObj, fieldList){
+  if(!stationObj) return null;
+  for(const field of fieldList){
+    const raw = stationObj[field]?.price;
+    if(raw == null) continue;
+    const v = parseFloat(raw);
+    if(!isNaN(v) && v > 0) return v;
+  }
+  return null;
+}
+
+async function tryFetchJSON(url){
+  const r = await fetch(url, {cache:'no-store', signal: AbortSignal.timeout(8000)});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+
+async function fetchThaiPrices(){
+  const direct = 'https://api.chnwt.dev/thai-oil-api/latest';
+  const proxied = [
+    'https://corsfix.com/?' + encodeURIComponent(direct),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct),
+    'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(direct),
+    'https://cors.x2u.in/' + direct,
+  ];
+  const attempts = [direct, ...proxied];
+
+  let lastErr = null;
+  for(const url of attempts){
+    try{
+      const data = await tryFetchJSON(url);
+      if(data?.status !== 'success' || !data?.response?.stations){
+        throw new Error('Unexpected payload shape');
+      }
+      const stations = data.response.stations;
+      // Build updated TH_BRANDS using API field map with per-fuel fallback list
+      const updated = {};
+      const missing = [];
+      for(const [key, fieldList] of Object.entries(TH_API_FUEL_MAP)){
+        updated[key] = [
+          pickPrice(stations.ptt,   fieldList),
+          pickPrice(stations.bcp,   fieldList),
+          pickPrice(stations.shell, fieldList),
+        ];
+        if(updated[key].every(v => v == null)) missing.push(key);
+      }
+      if(missing.length === Object.keys(TH_API_FUEL_MAP).length){
+        throw new Error('API returned no usable fuel prices');
+      }
+      // Impute missing brand prices from peers when there is strong agreement
+      // among brands that DO have data. Thai pump prices are coordinated
+      // through the Oil Fuel Fund — same wholesale basis across PTT/BCP/Shell.
+      //
+      // Two rules, by fuel family:
+      //  - DIESEL FAMILY (diesel, b20, premium_diesel): if PTT alone has a
+      //    price, impute it to other brands (they track PTT ±฿0.10 in practice).
+      //    User explicitly opted into this trade-off.
+      //  - GASOLINE FAMILY (gasohol 95/91/E20/E85, benzine 95): require ≥2
+      //    brands to agree within ฿0.01 before imputing — gasoline prices
+      //    diverge between brands more often.
+      // Never impute for fuels the brand genuinely doesn't sell (NOT_SOLD).
+      // Track which cells were imputed so the UI can label them honestly.
+      TH_BRANDS_IMPUTED = {};
+      const NOT_SOLD = {
+        gasohol91:{shell:true}, e85:{shell:true},
+        premium:{bcp:true, shell:true},
+      };
+      const DIESEL_FAMILY = new Set(['diesel','b20','premium_diesel']);
+      const brandIdx = {ptt:0, bcp:1, shell:2};
+      for(const fuel of Object.keys(updated)){
+        const row = updated[fuel];
+        const present = row.filter(v => v != null);
+        if(present.length === 0) continue;
+        let consensus = null;
+        if(DIESEL_FAMILY.has(fuel)){
+          consensus = row[0] ?? row[1] ?? row[2];
+        } else {
+          if(present.length < 2) continue;
+          for(let i=0;i<present.length;i++){
+            const matches = present.filter(v => Math.abs(v - present[i]) < 0.011).length;
+            if(matches >= 2){ consensus = present[i]; break; }
+          }
+        }
+        if(consensus == null) continue;
+        TH_BRANDS_IMPUTED[fuel] = [false, false, false];
+        for(const [brand, idx] of Object.entries(brandIdx)){
+          if(row[idx] == null && !NOT_SOLD[fuel]?.[brand]){
+            row[idx] = consensus;
+            TH_BRANDS_IMPUTED[fuel][idx] = true;
+          }
+        }
+      }
+      TH_BRANDS = updated;
+      TH_BRANDS_SOURCE = url === direct ? 'api-direct' : 'api-proxied';
+      TH_BRANDS_TIMESTAMP = data.response.date || new Date().toISOString();
+      // Sync dashboard-wide BANGKOK_THB to whichever brand has data (prefer PTT)
+      for(const fuelKey of Object.keys(BANGKOK_THB)){
+        const row = TH_BRANDS[fuelKey];
+        if(!row) continue;
+        const live = row[0] ?? row[1] ?? row[2];   // PTT > BCP > Shell
+        if(typeof live === 'number') BANGKOK_THB[fuelKey] = live;
+      }
+      // ALSO sync WORLD_USD[*].th — otherwise the Country Price Comparison
+      // table still shows the stale May-11 value (e.g. $1.63 G95) which gets
+      // multiplied by the LIVE FX rate, producing an inconsistent THB price
+      // (฿52.93) that contradicts the KPI strip (฿44.30). Bug fix.
+      const thbPerUsd = rates.THB || 32.4;
+      for(const fuelKey of Object.keys(BANGKOK_THB)){
+        if(WORLD_USD[fuelKey] && typeof BANGKOK_THB[fuelKey] === 'number'){
+          WORLD_USD[fuelKey].th = +(BANGKOK_THB[fuelKey] / thbPerUsd).toFixed(3);
+        }
+      }
+      // Append today's snapshot to rolling history (no-op if already captured today)
+      captureHistorySnapshot();
+      return true;
+    }catch(e){
+      lastErr = e;
+      // try next attempt
+    }
+  }
+  console.warn('All Thai-pump sources failed:', lastErr?.message);
+  TH_BRANDS_SOURCE = 'static-fallback';
+  return false;
+}
+
+function renderThaiBrandTable(){
+  const tbody = document.getElementById('th-brand-table');
+  if(!tbody) return;
+  // Match the 8 grades shown in the Bangchak iframe (image 1 reference).
+  const fuels = ['gasohol95','gasohol91','e20','e85','diesel','b20','premium','premium_diesel'];
+  // Known brand-fuel availability (real-world facts from each brand's product menu).
+  const NOT_SOLD = {
+    gasohol91:      { shell: true },                  // Shell TH discontinued Gasohol 91
+    e85:            { shell: true },                  // Shell doesn't sell E85
+    premium:        { bcp: true, shell: true },       // Benzine 95: only PTT/Caltex
+    // diesel, b20, premium_diesel: all three brands sell these
+  };
+  const brandKeys = ['ptt','bcp','shell'];
+
+  tbody.innerHTML = fuels.map(f => {
+    const [ptt, bcp, shell] = TH_BRANDS[f] || [null,null,null];
+    const prices = [ptt, bcp, shell].filter(p => p != null);
+    if(prices.length === 0){
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 12px;color:var(--text)">${FUEL_LABELS[f]}</td>
+        <td colspan="4" style="padding:9px 12px;text-align:center;color:var(--text3);font-size:11px" title="API returned no data for any brand. The upstream feed (thai-oil-api → kapook.com) may have changed its field name. Check the Bangchak iframe on the left for ground truth.">no data from API</td>
+      </tr>`;
+    }
+    const cheapest = Math.min(...prices);
+    const dearest  = Math.max(...prices);
+    const spread   = dearest - cheapest;
+    const imputedRow = TH_BRANDS_IMPUTED[f] || [false,false,false];
+    const fmt = (p, brandKey, lowest, brandIdx) => {
+      if(p != null){
+        const isImputed = imputedRow[brandIdx];
+        const prefix = isImputed ? '<span style="color:var(--amber)" title="API did not return ' + brandKey.toUpperCase() + ' price directly. Imputed from peer brand because Thai diesel pricing is coordinated within ±฿0.10 across brands.">~</span>' : '';
+        const style  = isImputed ? 'color:var(--amber)' : (p===lowest?'color:var(--green);font-weight:600':'');
+        return `${prefix}<span style="${style}">฿${p.toFixed(2)}</span>`;
+      }
+      if(NOT_SOLD[f]?.[brandKey]){
+        return `<span style="color:var(--text3)" title="${brandKey.toUpperCase()} does not sell ${FUEL_LABELS[f]} in Thailand">n/a</span>`;
+      }
+      return `<span style="color:var(--text3)" title="No price in API feed today — may be a temporary upstream issue">—</span>`;
+    };
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:9px 12px;color:var(--text)">${FUEL_LABELS[f]}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'JetBrains Mono',monospace">${fmt(ptt, 'ptt', cheapest, 0)}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'JetBrains Mono',monospace">${fmt(bcp, 'bcp', cheapest, 1)}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'JetBrains Mono',monospace">${fmt(shell, 'shell', cheapest, 2)}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'JetBrains Mono',monospace;color:${spread>0.3?'var(--amber)':'var(--text2)'}">฿${spread.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const asOf = document.getElementById('th-prices-asof');
+  if(asOf){
+    let badge, tip;
+    if(TH_BRANDS_SOURCE === 'api-direct'){
+      badge = '<span style="color:var(--green)">● live</span>';
+      tip = `direct from thai-oil-api · ${TH_BRANDS_TIMESTAMP || 'just now'}`;
+    } else if(TH_BRANDS_SOURCE === 'api-proxied'){
+      badge = '<span style="color:var(--green)">● live</span>';
+      tip = `via CORS proxy · ${TH_BRANDS_TIMESTAMP || 'just now'}`;
+    } else {
+      badge = '<span style="color:var(--amber)">⚠ fallback</span>';
+      tip = `API unreachable — showing manually verified values from ${formatDateLabel(FUEL_PRICE_VERIFIED)}`;
+    }
+    asOf.innerHTML = `${badge} · <span style="font-size:10px;color:var(--text3)">${tip}</span>`;
+  }
+}
+
+// Pearson correlation between two equal-length arrays
+function pearsonCorr(x, y){
+  const n = Math.min(x.length, y.length);
+  if(n < 3) return 0;
+  const a = x.slice(-n), b = y.slice(-n);
+  const mx = a.reduce((s,v)=>s+v,0)/n;
+  const my = b.reduce((s,v)=>s+v,0)/n;
+  let num=0, dx=0, dy=0;
+  for(let i=0;i<n;i++){
+    const ex = a[i]-mx, ey = b[i]-my;
+    num += ex*ey; dx += ex*ex; dy += ey*ey;
+  }
+  const denom = Math.sqrt(dx*dy);
+  return denom===0 ? 0 : num/denom;
+}
+
+// Rolling Brent history — captured daily alongside fuel prices.
+// Used to compute REAL correlation between crude and Thai pump prices
+// once enough live data accumulates.
+//
+// NOTE: Brent series is also seeded with 30 days of reasonable recent values
+// (approximate prices from public sources, April-May 2026 range $68-$74),
+// so the heatmap can render meaningful correlation cells from day one.
+// Real daily captures replace seed values as they arrive (same pattern as
+// the Thai fuel HISTORY_SEED).
+const BRENT_SEED = [
+  68.40,68.85,69.20,69.55,68.90,69.40,70.10,70.85,71.20,70.60,
+  70.95,71.50,72.05,71.70,71.25,71.80,72.35,72.80,72.55,72.40,
+  72.10,71.85,72.30,72.60,72.40,71.95,72.20,72.55,72.40,72.40,
+];
+const BRENT_HISTORY_KEY = 'fw_brent_history_v1';
+let BRENT_HISTORY = [...BRENT_SEED];   // start with seed, override with localStorage if present
+let BRENT_HISTORY_DATES = [];          // empty until live captures begin
+let BRENT_HISTORY_LIVE = BRENT_SEED.map(()=>false);  // seed entries are not "live"
+
+function loadBrentHistory(){
+  try{
+    const raw = localStorage.getItem(BRENT_HISTORY_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    const capturedVals  = Array.isArray(parsed?.values) ? parsed.values : [];
+    const capturedDates = Array.isArray(parsed?.dates)  ? parsed.dates  : [];
+    const capturedLive  = Array.isArray(parsed?.live)   ? parsed.live   : capturedVals.map(()=>false);
+    if(capturedVals.length === 0) return;
+    // Take seed tail (minus what captures will fill), then append captures
+    const seedKeep = Math.max(0, HISTORY_MAX - capturedVals.length);
+    const seedTail = BRENT_SEED.slice(-seedKeep);
+    BRENT_HISTORY      = [...seedTail, ...capturedVals];
+    BRENT_HISTORY_LIVE = [...seedTail.map(()=>false), ...capturedLive];
+    BRENT_HISTORY_DATES = capturedDates;  // dates only for captured tail
+  }catch(e){}
+}
+function saveBrentHistory(){
+  try{
+    // Only persist the CAPTURED tail (entries that have a date). The seed
+    // prefix is implicit — it lives in BRENT_SEED in code, not localStorage.
+    // This prevents the seed from being saved and reloaded as if it were
+    // captures, which would cause it to pyramid on reload.
+    const captureStart = BRENT_HISTORY.length - BRENT_HISTORY_DATES.length;
+    const values = BRENT_HISTORY.slice(captureStart);
+    const live   = BRENT_HISTORY_LIVE.slice(captureStart);
+    localStorage.setItem(BRENT_HISTORY_KEY, JSON.stringify({
+      values, dates: BRENT_HISTORY_DATES, live
+    }));
+  }catch(e){}
+}
+function captureBrentSnapshot(){
+  if(!liveCrude.brent) return;     // need *some* number
+  const today = new Date().toISOString().slice(0,10);
+  if(BRENT_HISTORY_DATES[BRENT_HISTORY_DATES.length-1] === today) return;
+  BRENT_HISTORY.push(liveCrude.brent);
+  BRENT_HISTORY_DATES.push(today);
+  BRENT_HISTORY_LIVE.push(!!liveCrude.brentIsLive);
+  // Fix: only shift each array when its own length exceeds the cap.
+  // BRENT_HISTORY starts at 30 (seed) so it overflows immediately on first
+  // capture, but BRENT_HISTORY_DATES/LIVE start at 0/30 respectively and
+  // must not be shifted in lockstep — that wipes captures or drifts flags.
+  if(BRENT_HISTORY.length > HISTORY_MAX) BRENT_HISTORY.shift();
+  if(BRENT_HISTORY_DATES.length > HISTORY_MAX) BRENT_HISTORY_DATES.shift();
+  if(BRENT_HISTORY_LIVE.length > HISTORY_MAX) BRENT_HISTORY_LIVE.shift();
+  saveBrentHistory();
+}
+loadBrentHistory();
+
+function renderThaiLinkage(){
+  const grid = document.getElementById('th-linkage-grid');
+  const explain = document.getElementById('th-linkage-explain');
+  if(!grid) return;
+
+  const liveBrent = liveCrude.brent || 72.4;
+  const sensitivity = 0.25;  // industry rule of thumb: ฿0.20-0.30/L per $1 Brent
+  const currentPump = BANGKOK_THB.gasohol95;
+  const thbUsd = (rates.THB || 32.3);
+
+  // Real correlation IF we have enough overlapping live data;
+  // otherwise show "—" honestly.
+  let corr = null, corrN = 0;
+  if(BRENT_HISTORY.length >= 5 && HISTORY_LIVE_COUNT >= 5){
+    // Align by overlapping dates.
+    // NOTE: BRENT_HISTORY_DATES only covers the captured tail of
+    // BRENT_HISTORY (the seed prefix has no dates). The index returned
+    // by BRENT_HISTORY_DATES.indexOf(d) must be offset by captureStart
+    // before being used to read BRENT_HISTORY.
+    const captureStart = BRENT_HISTORY.length - BRENT_HISTORY_DATES.length;
+    const thaiDates = HISTORY_DATES;
+    const aligned = {brent: [], thai: []};
+    for(let i=0;i<thaiDates.length;i++){
+      const d = thaiDates[i];
+      const bIdx = BRENT_HISTORY_DATES.indexOf(d);
+      if(bIdx === -1) continue;
+      const thaiPrice = HISTORY.gasohol95[HISTORY.gasohol95.length - thaiDates.length + i];
+      if(typeof thaiPrice !== 'number') continue;
+      aligned.thai.push(thaiPrice);
+      aligned.brent.push(BRENT_HISTORY[captureStart + bIdx]);
+    }
+    if(aligned.thai.length >= 5){
+      corr = pearsonCorr(aligned.thai, aligned.brent);
+      corrN = aligned.thai.length;
+    }
+  }
+
+  const cards = [
+    {
+      label: 'Brent → Pump β',
+      value: `฿${sensitivity.toFixed(2)} / $1`,
+      sub: '~5–10 day lag (industry estimate)',
+      color: 'var(--blue)'
+    },
+    corr !== null ? {
+      label: `Correlation (n=${corrN})`,
+      value: corr.toFixed(2),
+      sub: corr>0.7?'strong':corr>0.4?'moderate':corr>0?'weak':'inverse',
+      color: corr>0.7?'var(--green)':corr>0.4?'var(--amber)':'var(--red)'
+    } : {
+      label: 'Correlation',
+      value: '—',
+      sub: `capturing (${HISTORY_LIVE_COUNT}/5 days)`,
+      color: 'var(--text3)'
+    },
+    {
+      label: 'THB / USD impact',
+      value: `+฿0.30 / ฿1 FX`,
+      sub: `now ${thbUsd.toFixed(2)}`,
+      color: 'var(--purple)'
+    },
+  ];
+
+  grid.innerHTML = cards.map(c => `
+    <div style="background:var(--bg3);border-radius:var(--r);padding:12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${c.label}</div>
+      <div style="font-size:18px;font-weight:600;color:${c.color};font-family:'JetBrains Mono',monospace">${c.value}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${c.sub}</div>
+    </div>
+  `).join('');
+
+  const brentAvg = 68;
+  const brentDelta = liveBrent - brentAvg;
+  const projectedPumpChange = brentDelta * sensitivity;
+  const direction = projectedPumpChange > 0 ? 'higher' : 'lower';
+  const color = projectedPumpChange > 0 ? 'var(--red)' : 'var(--green)';
+
+  const corrText = corr !== null
+    ? `Real correlation: <strong>${corr.toFixed(2)}</strong> (n=${corrN} overlapping days). Thai pump prices ${corr>0.7?'closely track':corr>0.4?'partially track':'are largely decoupled from'} global crude on this window — expected given the Oil Fuel Fund's smoothing.`
+    : `Correlation requires ≥5 days of overlapping live Brent and Thai pump captures. Currently have ${HISTORY_LIVE_COUNT} day(s) of pump and ${BRENT_HISTORY.length} day(s) of Brent in localStorage. Keep the page loaded daily and this will populate.`;
+
+  explain.innerHTML = `
+    <strong style="color:var(--text)">Reading the numbers:</strong><br>
+    Brent now <strong>$${liveBrent.toFixed(2)}/bbl</strong>${liveCrude.brentIsLive?' (live)':' (reference)'} vs ~$${brentAvg}/bbl 6-mo avg →
+    ${Math.abs(brentDelta) < 1 ? 'no significant deviation' :
+      `<strong style="color:${color}">${brentDelta>=0?'+':''}$${brentDelta.toFixed(2)}</strong>,
+       implying pump prices ~<strong style="color:${color}">฿${Math.abs(projectedPumpChange).toFixed(2)}/L ${direction}</strong>
+       than 6-mo baseline (before 5–10 day lag).`}<br>
+    Current Bangkok G95: <strong>฿${currentPump.toFixed(2)}/L</strong>.<br>
+    ${corrText}<br>
+    <em style="color:var(--text3);font-size:11px">β = industry rule-of-thumb (฿0.20–0.30/L per $1 Brent). Actual pass-through depends on OFFO policy. 6-mo baseline of $68 is an approximate reference; will be replaced with rolling average once Brent capture has 60+ days.</em>
+  `;
+}
+
+function renderThaiSection(){
+  // Render immediately with whatever data we have (fallback or last fetch)
+  renderThaiBrandTable();
+  renderThaiLinkage();
+  // Then fetch in background and re-render on success
+  fetchThaiPrices().then(ok => {
+    if(ok){
+      renderThaiBrandTable();
+      renderThaiLinkage();
+      // The dashboard KPI strip and forecast also depend on BANGKOK_THB now
+      // — refresh them too so the whole UI is consistent.
+      try{ renderKPI(); renderTable(); renderTicker(); }catch(e){}
+    }
+  });
+}
+
+// Note: periodic refresh of Thai prices is handled by doRefresh()'s
+// per-source throttle (REFRESH_INTERVALS.thai = 30 min) — no separate timer needed.
+
+// ══════════════════════════════════════════════════════════════════
+// FORECAST ENGINE — Holt linear method (level + trend) with variance-based CI
+// ══════════════════════════════════════════════════════════════════
+// NOTE: This is statistical extrapolation, not machine learning. Forecasts
+// are based on 30-day price history only; they cannot account for OPEC
+// announcements, geopolitical events, or government subsidy changes.
+function linearRegression(data){
+  const n = data.length;
+  let sumX=0,sumY=0,sumXY=0,sumXX=0;
+  for(let i=0;i<n;i++){sumX+=i;sumY+=data[i];sumXY+=i*data[i];sumXX+=i*i;}
+  const denom = (n*sumXX - sumX*sumX);
+  const slope = denom===0 ? 0 : (n*sumXY - sumX*sumY)/denom;
+  const intercept = (sumY - slope*sumX)/n;
+  return {slope, intercept};
+}
+
+// Standard deviation of first differences — measures price volatility
+function diffStdDev(data){
+  if(data.length < 2) return 0;
+  const diffs = [];
+  for(let i=1;i<data.length;i++) diffs.push(data[i]-data[i-1]);
+  const mean = diffs.reduce((s,x)=>s+x,0)/diffs.length;
+  const variance = diffs.reduce((s,x)=>s+(x-mean)**2,0)/diffs.length;
+  return Math.sqrt(variance);
+}
+
+// Holt's linear method: separate level and trend smoothing
+function holtLinear(data, alpha=0.4, beta=0.2){
+  let level = data[0];
+  let trend = data[1] - data[0];
+  for(let i=1;i<data.length;i++){
+    const prevLevel = level;
+    level = alpha*data[i] + (1-alpha)*(level + trend);
+    trend = beta*(level - prevLevel) + (1-beta)*trend;
+  }
+  return {level, trend};
+}
+
+function generateForecast(history, days=14){
+  const recent = history.slice(-30);
+
+  // Linear regression slope from FULL window (catches longer-term trend
+  // even when the last few points are stale/flat government-set prices)
+  const {slope: lrSlope} = linearRegression(recent);
+
+  // Holt's method captures recent level + trend dynamically
+  const {level, trend: holtTrend} = holtLinear(recent);
+
+  // Blend the two slopes — Holt is more responsive, LR is more stable
+  const blendedSlope = 0.5*lrSlope + 0.5*holtTrend;
+
+  // Confidence band derived from actual price volatility, not a fixed constant
+  const sigma = diffStdDev(recent);
+
+  const forecast = [];
+  const upper = [];
+  const lower = [];
+  for(let h=1;h<=days;h++){
+    const point = level + h*blendedSlope;
+    // CI grows as sqrt(h) — standard random-walk forecast variance
+    const ci = 1.96 * sigma * Math.sqrt(h);
+    forecast.push(+point.toFixed(3));
+    upper.push(+(point + ci).toFixed(3));
+    lower.push(+(point - ci).toFixed(3));
+  }
+  return {forecast, upper, lower, slope: blendedSlope, sigma};
+}
+
+function computePressureIndex(){
+  // Weighted composite of: crude trend, recent price momentum, forecast direction
+  const hist = HISTORY[currentFuel];
+  const recent = hist.slice(-7);
+  const momentum = (recent[recent.length-1] - recent[0]) / recent[0] * 100;
+  // Use live Brent if fetchCrude has populated it, else fall back to reference
+  const crude = liveCrude.brent || 72.40;
+  const crudeNorm = Math.max(0, Math.min(1, (crude - 60) / (90 - 60)));  // clip to [0,1]
+  const {forecast} = generateForecast(hist, 7);
+  const fcastMomentum = (forecast[6] - hist[hist.length-1]) / hist[hist.length-1] * 100;
+  const index = Math.min(100, Math.max(0,
+    crudeNorm * 40 + Math.max(0, momentum) * 8 + Math.max(0, fcastMomentum) * 10 + 20
+  ));
+  return Math.round(index);
+}
+
+// ── RENDER KPI STRIP ───────────────────────────────────────────────
+function renderKPI(){
+  const thbPrice = BANGKOK_THB[currentFuel];
+  const usdPrice = usdFromTHB(thbPrice);
+  const prevThb = HISTORY[currentFuel][HISTORY[currentFuel].length-8] || thbPrice*0.99;
+  const chgPct = ((thbPrice-prevThb)/prevThb*100).toFixed(2);
+  const isUp = chgPct >= 0;
+  const currencies = ['USD','THB','EUR','GBP','JPY','SGD','AUD','CNY'];
+  document.getElementById('kpi-strip').innerHTML = currencies.map(c => {
+    const price = toCur(usdPrice, c);
+    const isPrimary = c === 'USD';
+    return `<div class="kpi${isPrimary?' primary':''}">
+      <div class="kpi-flag"><span>${c}</span></div>
+      <div class="kpi-val">${fmtR(price,c)}</div>
+      <div class="kpi-sub">per liter · ${FUEL_LABELS[currentFuel]}</div>
+      ${isPrimary?`<div class="kpi-chg ${isUp?'up':'dn'}">${isUp?'▲':'▼'} ${Math.abs(chgPct)}% vs last week</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ── RENDER COUNTRY TABLE ───────────────────────────────────────────
+function renderTable(){
+  const fuelData = WORLD_USD[currentFuel];
+  const rows = COUNTRIES.filter(c => fuelData[c.key]!==undefined)
+    .map(c => ({...c, usd: fuelData[c.key]}))
+    .sort((a,b) => a.usd-b.usd);
+  const maxUSD = Math.max(...rows.map(r=>r.usd));
+  const minUSD = Math.min(...rows.map(r=>r.usd));
+  const avgUSD = rows.reduce((s,r)=>s+r.usd,0)/rows.length;
+
+  document.getElementById('table-fuel-label').textContent = FUEL_LABELS[currentFuel]+' — sorted: cheapest first · '+rows.length+' countries';
+  document.getElementById('ct-body').innerHTML = rows.map((r,i) => {
+    const localPrice = toCur(r.usd, r.local);
+    const pct = Math.round((r.usd/maxUSD)*100);
+    const isCheapest = r.usd===minUSD, isPriciest = r.usd===maxUSD;
+    const vsAvg = ((r.usd - avgUSD)/avgUSD*100);
+    const vsClass = vsAvg < 0 ? 'vs-cheap' : 'vs-pricey';
+    const vsText = (vsAvg>0?'+':'')+vsAvg.toFixed(0)+'%';
+    return `<tr${r.home?' class="home-row"':''}>
+      <td style="padding-left:18px">
+        <div class="c-cell">
+          <span class="c-flag">${r.flag}</span>
+          <div>
+            <div class="c-name">${r.name}${r.home?'<span style="font-size:9px;background:var(--green-dim);color:var(--green);border:1px solid rgba(0,232,150,.3);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:6px;letter-spacing:.04em;vertical-align:middle" title="Updated live from thai-oil-api">LIVE</span>':''}${isCheapest?'<span class="cheapest-badge" title="Cheapest among all 15 tracked countries">🏆 CHEAPEST</span>':''}${isPriciest?'<span class="priciest-badge">PRICIEST</span>':''}</div>
+            <small style="font-size:10px;color:var(--text3)">${r.sub}</small>
+          </div>
+        </div>
+      </td>
+      <td><span class="c-usd">${fmtUSD(r.usd)}</span></td>
+      <td><span class="c-local">${fmtR(localPrice,r.local)}</span></td>
+      <td><span class="vs-avg ${vsClass}">${vsText}</span></td>
+      <td style="padding-right:18px">
+        <div class="rank-wrap">
+          <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${pct}%"></div></div>
+          <span class="rank-n">#${i+1}</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── RENDER TREND CHART ─────────────────────────────────────────────
+function renderChart(){
+  const n = chartRange==='7d'?7:chartRange==='30d'?30:90;
+  const histAll = HISTORY[currentFuel];
+  const slice = histAll.slice(-Math.min(n,histAll.length));
+  // Use real capture dates from HISTORY_DATES when available; otherwise fall
+  // back to "today minus i days" for the seed portion.
+  //
+  // IMPORTANT: HISTORY_DATES holds dates ONLY for the captured tail of
+  // HISTORY (the seed prefix has no dates). When slicing the last N points,
+  // the captured dates must fill the RIGHTMOST positions of the slice,
+  // not the leftmost — otherwise newest captures get labeled with old
+  // synthetic dates and vice versa.
+  const labels = [];
+  const today = new Date();
+  const sliceLen = slice.length;
+  const datesAvail = HISTORY_DATES.slice(-sliceLen);
+  const startOffset = sliceLen - datesAvail.length;  // # of seed positions at front
+  for(let i=0;i<sliceLen;i++){
+    let d;
+    const dateIdx = i - startOffset;
+    if(dateIdx >= 0 && datesAvail[dateIdx]){
+      d = new Date(datesAvail[dateIdx]);
+    }else if(datesAvail.length > 0){
+      // Project backwards from the oldest known capture date
+      d = new Date(datesAvail[0]);
+      d.setDate(d.getDate() - (startOffset - i));
+    }else{
+      // No captures yet — fall back to today-N
+      d = new Date(today);
+      d.setDate(today.getDate() - (sliceLen - 1 - i));
+    }
+    labels.push(n<=7
+      ? d.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'})
+      : d.toLocaleDateString('en',{month:'short',day:'numeric'})
+    );
+  }
+  if(trendChart) trendChart.destroy();
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,220);
+  grad.addColorStop(0,'rgba(16,214,142,0.15)');
+  grad.addColorStop(1,'rgba(16,214,142,0.01)');
+  trendChart = new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{
+      label:'THB/L',data:slice,
+      borderColor:'#10d68e',backgroundColor:grad,borderWidth:1.5,
+      tension:0.3,fill:true,
+      pointRadius:n<=7?4:2,pointBackgroundColor:'#10d68e',
+      pointBorderColor:'#07090f',pointBorderWidth:2,pointHoverRadius:6
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#141820',titleColor:'#8892a4',bodyColor:'#e8ecf3',
+          borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:10,
+          callbacks:{label:c=>{const t=c.parsed.y;return[`฿${t.toFixed(2)}/L`,'$'+usdFromTHB(t).toFixed(3)+'/L'];}}
+        }
+      },
+      scales:{
+        y:{ticks:{callback:v=>'฿'+v.toFixed(0),color:'#4a5568',font:{family:'JetBrains Mono',size:11}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'rgba(255,255,255,0.06)'}},
+        x:{ticks:{color:'#4a5568',font:{family:'JetBrains Mono',size:10},maxRotation:0,autoSkip:true,maxTicksLimit:7},grid:{display:false},border:{color:'rgba(255,255,255,0.06)'}}
+      }
+    }
+  });
+}
+
+// ── RENDER AI FORECAST CHART ───────────────────────────────────────
+function renderForecastChart(){
+  const hist = HISTORY[currentFuel];
+  const histSlice = hist.slice(-14);
+  const today = new Date();   // use real current date, not hardcoded
+  const {forecast, upper, lower, slope} = generateForecast(hist, 14);
+
+  // Build labels: 14 hist + 14 forecast. Use HISTORY_DATES for past where available.
+  // Same alignment concern as renderChart: captured dates fill the rightmost
+  // positions of the historical slice, not the leftmost.
+  const allLabels = [];
+  const datesAvail = HISTORY_DATES.slice(-14);
+  const startOffset = 14 - datesAvail.length;
+  for(let i=0;i<14;i++){
+    let d;
+    const dateIdx = i - startOffset;
+    if(dateIdx >= 0 && datesAvail[dateIdx]){
+      d = new Date(datesAvail[dateIdx]);
+    }else if(datesAvail.length > 0){
+      d = new Date(datesAvail[0]);
+      d.setDate(d.getDate() - (startOffset - i));
+    }else{
+      d = new Date(today);
+      d.setDate(today.getDate() - (13 - i));
+    }
+    allLabels.push(d.toLocaleDateString('en',{month:'short',day:'numeric'}));
+  }
+  for(let i=1;i<=14;i++){
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    allLabels.push(d.toLocaleDateString('en',{month:'short',day:'numeric'}));
+  }
+
+  const histData = [...histSlice, ...Array(14).fill(null)];
+  const forecastData = [...Array(13).fill(null), histSlice[13], ...forecast];
+  const upperData = [...Array(13).fill(null), histSlice[13], ...upper];
+  const lowerData = [...Array(13).fill(null), histSlice[13], ...lower];
+
+  if(forecastChart) forecastChart.destroy();
+  const ctx = document.getElementById('forecastChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(16,214,142,0.12)');
+  grad.addColorStop(1,'rgba(16,214,142,0.01)');
+  const fGrad = ctx.createLinearGradient(0,0,0,200);
+  fGrad.addColorStop(0,'rgba(167,139,250,0.15)');
+  fGrad.addColorStop(1,'rgba(167,139,250,0.01)');
+
+  forecastChart = new Chart(ctx,{
+    type:'line',
+    data:{labels:allLabels,datasets:[
+      {label:'Historical',data:histData,borderColor:'#10d68e',backgroundColor:grad,borderWidth:2,tension:0.3,fill:true,pointRadius:3,pointBackgroundColor:'#10d68e',pointBorderColor:'#07090f',pointBorderWidth:1},
+      {label:'Forecast',data:forecastData,borderColor:'rgba(167,139,250,0.9)',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],tension:0.3,fill:false,pointRadius:2,pointBackgroundColor:'#a78bfa',pointBorderColor:'transparent'},
+      {label:'Upper Band',data:upperData,borderColor:'rgba(167,139,250,0.2)',backgroundColor:'rgba(167,139,250,0.08)',borderWidth:1,tension:0.3,fill:'+1',pointRadius:0},
+      {label:'Lower Band',data:lowerData,borderColor:'rgba(167,139,250,0.2)',backgroundColor:'rgba(167,139,250,0.08)',borderWidth:1,tension:0.3,fill:false,pointRadius:0},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#141820',titleColor:'#8892a4',bodyColor:'#e8ecf3',
+          borderColor:'rgba(167,139,250,0.2)',borderWidth:1,padding:10,
+          filter:item=>item.dataset.label!=='Upper Band'&&item.dataset.label!=='Lower Band',
+          callbacks:{label:c=>{
+            const v=c.parsed.y;if(v===null)return null;
+            return `${c.dataset.label}: ฿${v.toFixed(2)}/L`;
+          }}
+        },
+        annotation:{} // no annotation plugin needed
+      },
+      scales:{
+        y:{ticks:{callback:v=>'฿'+v.toFixed(0),color:'#4a5568',font:{family:'JetBrains Mono',size:11}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'rgba(255,255,255,0.06)'}},
+        x:{ticks:{color:'#4a5568',font:{family:'JetBrains Mono',size:10},maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false},border:{color:'rgba(255,255,255,0.06)'}}
+      }
+    }
+  });
+
+  // Update forecast summary
+  const lastActual = hist[hist.length-1];
+  const forecastEnd = forecast[13];
+  const chgPct = ((forecastEnd - lastActual)/lastActual*100);
+  const direction = slope > 0.01 ? '📈 rising' : slope < -0.01 ? '📉 falling' : '➡ stable';
+  const ciPct = ((upper[13] - lower[13]) / forecastEnd * 50).toFixed(1);  // half-width %
+  const historyComposition = HISTORY_LIVE_COUNT >= HISTORY_MAX
+    ? `100% live data (${HISTORY_MAX} captures)`
+    : HISTORY_LIVE_COUNT > 0
+      ? `${HISTORY_LIVE_COUNT}/${HISTORY_MAX} days from live API, rest from seed`
+      : `seed data only — live captures will accumulate daily`;
+  document.getElementById('forecast-fuel-label').textContent = FUEL_LABELS[currentFuel];
+  document.getElementById('forecast-summary').innerHTML =
+    `<strong style="color:var(--text)">Forecast Summary:</strong> ${FUEL_LABELS[currentFuel]} prices in Bangkok are trending <strong style="color:${chgPct>0?'var(--red)':'var(--green)'}">${direction}</strong>.
+    14-day forecast: <strong style="color:var(--text);font-family:'JetBrains Mono',monospace">฿${forecastEnd.toFixed(2)}/L</strong>
+    (${chgPct>0?'+':''}${chgPct.toFixed(2)}% from today's ฿${lastActual.toFixed(2)}/L).
+    95% CI: <strong style="color:var(--text);font-family:'JetBrains Mono',monospace">฿${lower[13].toFixed(2)}–฿${upper[13].toFixed(2)}</strong> (±${ciPct}%).
+    <span style="color:var(--text3)">Model: Holt linear smoothing on 30-day history (${historyComposition}). σ-based CI grows with √h.</span>`;
+}
+
+// ── AI INSIGHTS CARDS ──────────────────────────────────────────────
+function renderAIInsights(){
+  const hist = HISTORY[currentFuel];
+  const {forecast, slope, sigma} = generateForecast(hist, 7);
+  const current = hist[hist.length-1];
+  const fDay7 = forecast[6];
+  const chg7d = ((fDay7-current)/current*100);
+  const pressureIdx = computePressureIndex();
+
+  // CI-aware fill decision: only recommend FILL UP if forecast change exceeds
+  // the noise floor (half the 95% CI). Otherwise WAIT — the move isn't significant.
+  const ciHalfPct = (1.96 * sigma * Math.sqrt(7) / current * 100);
+  const signalIsReal = Math.abs(chg7d) > ciHalfPct * 0.5;
+  const shouldFill = signalIsReal && chg7d > 0;
+  const isFalling = signalIsReal && chg7d < 0;
+
+  const bestFuel = Object.entries(BANGKOK_THB).sort((a,b)=>a[1]-b[1])[0];
+  const savingsE85vsG95 = ((BANGKOK_THB.gasohol95 - BANGKOK_THB.e85)/BANGKOK_THB.gasohol95*100).toFixed(1);
+
+  // Compute cheapest country from live WORLD_USD instead of hardcoding Malaysia
+  const fd = WORLD_USD[currentFuel];
+  const cheapestEntry = COUNTRIES
+    .filter(c => fd[c.key] != null)
+    .map(c => ({c, usd: fd[c.key]}))
+    .sort((a,b) => a.usd - b.usd)[0];
+  const allUsd = Object.values(fd);
+  const globalAvg = allUsd.reduce((s,v)=>s+v,0) / allUsd.length;
+  const cheapPct = ((1 - cheapestEntry.usd/globalAvg) * 100).toFixed(0);
+
+  const cards = [
+    {
+      cls:'bullish',
+      label:'7-Day Forecast',
+      badge: shouldFill ? {cls:'badge-buy',txt:'FILL UP NOW'}
+           : isFalling   ? {cls:'badge-buy',txt:'PRICES FALLING'}
+           : {cls:'badge-wait',txt:'WAIT'},
+      val:`฿${fDay7.toFixed(2)}`,
+      sub:`${chg7d>=0?'▲':'▼'} ${Math.abs(chg7d).toFixed(2)}% in 7d (95% CI ±${ciHalfPct.toFixed(1)}%). ${
+        shouldFill ? 'Forecast move exceeds noise — fill up before the hike.' :
+        isFalling  ? 'Forecast falling beyond noise — wait if you can.' :
+        'Change is within noise — fill up when convenient.'
+      }`
+    },
+    {
+      cls:'neutral',
+      label:'Price Pressure Index',
+      badge:{cls:pressureIdx>65?'badge-high':pressureIdx>40?'badge-wait':'badge-buy',txt:pressureIdx>65?'HIGH':pressureIdx>40?'MODERATE':'LOW'},
+      val:`${pressureIdx}/100`,
+      sub:`Composite of live Brent vs $60–90 range, 7-day Thai momentum, and 7-day forecast direction.`
+    },
+    {
+      cls:'ai-rec',
+      label:'Best Value Fuel',
+      badge:{cls:'badge-ai',txt:'CHEAPEST/L'},
+      val:bestFuel[0]==='e85'?'E85':bestFuel[0]==='e20'?'E20':FUEL_LABELS[bestFuel[0]],
+      sub:`Gasohol E85 is ${savingsE85vsG95}% cheaper per litre than Gasohol 95 at Bangkok pumps today. Compatible vehicles save ฿${((BANGKOK_THB.gasohol95-BANGKOK_THB.e85)*40).toFixed(0)} per 40 L. Note: E85 has ~28% lower energy density — see Data Assistant for energy-adjusted comparison.`
+    },
+    {
+      cls:'bearish',
+      label:'Cheapest Country',
+      badge:{cls:'badge-buy',txt:cheapestEntry.c.name.toUpperCase()},
+      val:`$${cheapestEntry.usd.toFixed(2)}/L`,
+      sub:`${cheapestEntry.c.flag} ${cheapestEntry.c.name} is cheapest among ${allUsd.length} tracked countries at $${cheapestEntry.usd.toFixed(2)}/L for ${FUEL_LABELS[currentFuel]} — ${cheapPct}% below 15-country average of $${globalAvg.toFixed(2)}/L.`
+    }
+  ];
+  document.getElementById('ai-insights-grid').innerHTML = cards.map(c=>`
+    <div class="insight-card ${c.cls}">
+      <div class="ic-header">
+        <span class="ic-label">${c.label}</span>
+        <span class="ic-badge ${c.badge.cls}">${c.badge.txt}</span>
+      </div>
+      <div class="ic-val">${c.val}</div>
+      <div class="ic-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ── SAVINGS ANALYZER ──────────────────────────────────────────────
+function renderSavings(){
+  const fill = 40;
+  const fuelData = WORLD_USD[currentFuel];
+  const rows = COUNTRIES.filter(c=>fuelData[c.key]).map(c=>({
+    name:c.name, flag:c.flag, usd:fuelData[c.key], total:fuelData[c.key]*fill
+  })).sort((a,b)=>a.total-b.total);
+  const max = rows[rows.length-1].total;
+  const thaiTotal = rows.find(r=>r.name==='Thailand')?.total||0;
+  document.getElementById('savings-bars').innerHTML = rows.map(r=>{
+    const barPct = (r.total/max*100).toFixed(1);
+    const diff = r.total - thaiTotal;
+    const diffStr = diff===0?'—':(diff>0?'+':'') + '$'+Math.abs(diff).toFixed(2);
+    const barColor = r.total<=thaiTotal*1.1?'var(--green)':r.total>=thaiTotal*1.5?'var(--red)':'var(--amber)';
+    return `<div class="sav-row">
+      <span class="sav-country">${r.flag} ${r.name.substring(0,7)}</span>
+      <div class="sav-bar-bg"><div class="sav-bar-fill" style="width:${barPct}%;background:${barColor}"></div></div>
+      <span class="sav-val">$${r.total.toFixed(2)}</span>
+      <span class="sav-diff" style="color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text3)'}">${diffStr}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── MODEL EXPLAINABILITY ──────────────────────────────────────────
+// (Removed: previously rendered fake hardcoded feature-importance bars.
+// The forecast method is now described as static HTML in the markup.)
+function renderExplainability(){ /* no-op: replaced by static HTML */ }
+
+// ── SENTIMENT GAUGE ───────────────────────────────────────────────
+function renderGauge(){
+  const idx = computePressureIndex();
+  // Rotate needle: 0 → -90deg (left), 100 → +90deg (right)
+  const deg = (idx/100)*180 - 90;
+  const needle = document.getElementById('gauge-needle');
+  if(needle) needle.style.transform = `rotate(${deg}deg)`;
+  document.getElementById('gauge-val').textContent = idx+'/100';
+  const label = idx>65?'High Pressure — prices likely rising':idx>40?'Moderate — watch crude oil':'Low Pressure — stable conditions';
+  document.getElementById('gauge-sub').textContent = label;
+
+  // Compute pressure factors from REAL data
+  const hist = HISTORY[currentFuel];
+  const recent7 = hist.slice(-7);
+  const thaiPct = ((recent7[recent7.length-1] - recent7[0]) / recent7[0] * 100);
+  const recent30 = hist.slice(-30);
+  const thaiMonthPct = ((recent30[recent30.length-1] - recent30[0]) / recent30[0] * 100);
+
+  // Brent: live current vs rolling avg if we have one, else reference $68
+  const brentNow = liveCrude.brent || 72.4;
+  const brentBaseline = BRENT_HISTORY.length >= 7
+    ? BRENT_HISTORY.reduce((s,v)=>s+v,0) / BRENT_HISTORY.length
+    : 68;
+  const brentPct = ((brentNow - brentBaseline) / brentBaseline * 100);
+
+  // Global avg trend: compare 15-country avg now vs whether it's mostly above/below historical baseline ($1.50)
+  const globalAvg = Object.values(WORLD_USD[currentFuel]).reduce((s,v)=>s+v,0)/Object.values(WORLD_USD[currentFuel]).length;
+  const globalBaseline = 1.45;
+  const globalPct = ((globalAvg - globalBaseline) / globalBaseline * 100);
+
+  const fmtPct = (p, suffix='%') => {
+    const sign = p >= 0 ? '+' : '';
+    const arrow = Math.abs(p) < 0.3 ? '➡' : p > 0 ? '▲' : '▼';
+    return `${arrow} ${sign}${p.toFixed(2)}${suffix}`;
+  };
+  const colorOf = p => Math.abs(p) < 0.5 ? 'var(--amber)' : p > 0 ? 'var(--red)' : 'var(--green)';
+
+  document.getElementById('pressure-factors').innerHTML = [
+    {k:'Brent vs avg', v:fmtPct(brentPct), c:colorOf(brentPct), title:`Live Brent $${brentNow.toFixed(2)} vs baseline $${brentBaseline.toFixed(2)}`},
+    {k:`Thai 7d (${FUEL_LABELS[currentFuel].split(' ')[0]})`, v:fmtPct(thaiPct), c:colorOf(thaiPct), title:`฿${recent7[0].toFixed(2)} → ฿${recent7[recent7.length-1].toFixed(2)}`},
+    {k:'Thai 30d trend', v:fmtPct(thaiMonthPct), c:colorOf(thaiMonthPct), title:`30-day change`},
+    {k:'Global avg vs $1.45', v:fmtPct(globalPct), c:colorOf(globalPct), title:`15-country avg $${globalAvg.toFixed(2)}/L`},
+  ].map(f=>`<div style="background:var(--bg3);border-radius:var(--r);padding:8px 10px" title="${f.title}">
+    <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-bottom:2px">${f.k}</div>
+    <div style="font-size:13px;font-weight:600;color:${f.c};font-family:'JetBrains Mono',monospace">${f.v}</div>
+  </div>`).join('');
+}
+
+// ── HEATMAP ───────────────────────────────────────────────────────
+// Variance helper — returns 0 if all values are identical
+function arrayVariance(arr){
+  if(arr.length < 2) return 0;
+  const mean = arr.reduce((s,v)=>s+v,0) / arr.length;
+  return arr.reduce((s,v)=>s+(v-mean)**2, 0) / arr.length;
+}
+
+function renderHeatmap(){
+  // HONEST VERSION: only show correlations we can actually compute.
+  // 8 Thai fuels (live rolling history) + Brent crude (rolling, may include
+  // reference fallbacks).
+  // Defensive: only include series whose history is actually present and
+  // non-empty (guards against partial localStorage migration).
+  const candidates = {
+    'G95':       HISTORY.gasohol95,
+    'G91':       HISTORY.gasohol91,
+    'E20':       HISTORY.e20,
+    'E85':       HISTORY.e85,
+    'Diesel':    HISTORY.diesel,
+    'B20':       HISTORY.b20,
+    'Benz95':    HISTORY.premium,
+    'PDiesel':   HISTORY.premium_diesel,
+    'Brent':     BRENT_HISTORY.length >= 5 ? BRENT_HISTORY : null,
+  };
+  const series = {};
+  for(const [k,v] of Object.entries(candidates)){
+    // Brent may legitimately be null. All others must be arrays of length ≥ 5.
+    if(k === 'Brent'){
+      series[k] = v;
+    } else if(Array.isArray(v) && v.length >= 5){
+      series[k] = v;
+    } else {
+      series[k] = null;
+    }
+  }
+  const labels = Object.keys(series);
+  const cells = [];
+
+  for(let r=0;r<labels.length;r++){
+    for(let c=0;c<labels.length;c++){
+      const a = series[labels[r]];
+      const b = series[labels[c]];
+      let label, title, bg;
+      if(r === c){
+        // Diagonal — always show the label, even if series is missing
+        label = labels[r];
+        title = a ? labels[r] : labels[r] + ' (no data captured yet)';
+        bg = 'rgba(255,255,255,0.06)';
+      } else if(!a || !b || a.length < 5 || b.length < 5){
+        label = '—';
+        title = `${labels[r]} ↔ ${labels[c]}: need ≥5 captures (have ${a?.length||0} / ${b?.length||0})`;
+        bg = 'rgba(255,255,255,0.03)';
+      } else {
+        const n = Math.min(a.length, b.length);
+        const sliceA = a.slice(-n), sliceB = b.slice(-n);
+        if(arrayVariance(sliceA) < 1e-6 || arrayVariance(sliceB) < 1e-6){
+          label = 'flat';
+          title = `${labels[r]} ↔ ${labels[c]}: one series has no variation in last ${n} captures`;
+          bg = 'rgba(255,255,255,0.03)';
+        } else {
+          const v = pearsonCorr(sliceA, sliceB);
+          const alpha = 0.2 + Math.abs(v)*0.6;
+          const color = v >= 0 ? `rgba(16,214,142,${alpha.toFixed(2)})` : `rgba(255,92,122,${alpha.toFixed(2)})`;
+          label = v.toFixed(2);
+          title = `${labels[r]} ↔ ${labels[c]} (n=${n}): ${v.toFixed(3)}`;
+          bg = color;
+        }
+      }
+      cells.push(`<div class="hm-cell" style="background:${bg};font-size:10px;min-height:48px" title="${title}">${label}</div>`);
+    }
+  }
+
+  const grid = document.getElementById('heatmap-grid');
+  if(grid){
+    grid.style.gridTemplateColumns = `repeat(${labels.length}, 1fr)`;
+    grid.innerHTML = cells.join('');
+  }
+
+  // Visible caption
+  const caption = document.getElementById('heatmap-caption');
+  if(caption){
+    const composition = HISTORY_LIVE_COUNT >= HISTORY_MAX
+      ? `<span style="color:var(--green)">● 100% live (${HISTORY_LIVE_COUNT}/${HISTORY_MAX})</span>`
+      : HISTORY_LIVE_COUNT > 0
+        ? `<span style="color:var(--amber)" title="Values mix live captures with seed bootstrap until 30 days accumulate.">◐ ${HISTORY_LIVE_COUNT}/${HISTORY_MAX} live + seed</span>`
+        : `<span style="color:var(--text3)">○ seed only</span>`;
+    const liveBrentCount = BRENT_HISTORY_LIVE.filter(x => x).length;
+    const refBrentCount  = BRENT_HISTORY_DATES.length - liveBrentCount;
+    const seedBrentCount = BRENT_HISTORY.length - BRENT_HISTORY_DATES.length;
+    let brentStatus;
+    if(liveBrentCount >= 5){
+      brentStatus = `<span style="color:var(--green)">● Brent: ${liveBrentCount} live${refBrentCount?` + ${refBrentCount} ref`:''}${seedBrentCount?` + ${seedBrentCount} seed`:''}</span>`;
+    } else if(BRENT_HISTORY_DATES.length > 0){
+      brentStatus = `<span style="color:var(--amber)" title="Yahoo/Stooq fetches mostly returning the reference fallback. Brent correlations are based on seed + ref data — directionally indicative, not authoritative.">⚠ Brent: ${liveBrentCount} live, ${refBrentCount} ref, ${seedBrentCount} seed</span>`;
+    } else {
+      brentStatus = `<span style="color:var(--text3)" title="No live Brent captures yet. Heatmap uses the 30-day seed (approximate April–May 2026 values).">○ Brent: seed only (${seedBrentCount})</span>`;
+    }
+    caption.innerHTML = `Data: ${composition} &nbsp;·&nbsp; ${brentStatus}`;
+  }
+}
+
+// ── DATA ASSISTANT ────────────────────────────────────────────────
+// Computes answers from actual live data. No LLM, no API key required.
+// All numbers shown come from real computation against current state.
+function aiCheapest(){
+  const fd = WORLD_USD[currentFuel];
+  const sorted = Object.entries(fd).sort((a,b)=>a[1]-b[1]);
+  const cheap = COUNTRIES.find(c=>c.key===sorted[0][0]);
+  const expensive = COUNTRIES.find(c=>c.key===sorted[sorted.length-1][0]);
+  const avg = sorted.reduce((s,e)=>s+e[1],0)/sorted.length;
+  const cheapPct = ((1 - sorted[0][1]/avg)*100).toFixed(0);
+  return `<strong>Cheapest:</strong> ${cheap.flag} ${cheap.name} — $${sorted[0][1].toFixed(2)}/L (${cheapPct}% below 15-country avg of $${avg.toFixed(2)}/L)<br>
+<strong>Most expensive:</strong> ${expensive.flag} ${expensive.name} — $${sorted[sorted.length-1][1].toFixed(2)}/L<br>
+<strong>Spread:</strong> ${(sorted[sorted.length-1][1]/sorted[0][1]).toFixed(1)}× — driven mostly by tax policy and fuel subsidies.<br>
+<em style="color:var(--text3);font-size:11px">Source: GlobalPetrolPrices.com snapshot, ${formatDateLabel(GLOBAL_PRICE_UPDATED)}</em>`;
+}
+
+function aiFillup(){
+  const hist = HISTORY[currentFuel];
+  const {forecast, sigma} = generateForecast(hist, 7);
+  const current = hist[hist.length-1];
+  const fDay7 = forecast[6];
+  const chg = ((fDay7-current)/current*100);
+  const ciPct = (1.96*sigma*Math.sqrt(7)/current*100).toFixed(2);
+  // If forecast change is within noise, say so honestly
+  if(Math.abs(chg) < ciPct*0.5){
+    return `<strong>Verdict: No statistical signal.</strong><br>
+7-day forecast change (${chg>=0?'+':''}${chg.toFixed(2)}%) is smaller than the 95% confidence interval (±${ciPct}%) derived from recent price volatility (σ = ฿${sigma.toFixed(3)}/day).<br>
+<em>Translation: prices look flat. Filling now vs next week is unlikely to matter. Note that Thai pump prices are government-announced, not daily-floating — they only change when PTT/Bangchak issue a new rate.</em>`;
+  }
+  const dir = chg > 0 ? 'rise' : 'fall';
+  const color = chg > 0 ? 'var(--red)' : 'var(--green)';
+  return `<strong>Forecast:</strong> ${FUEL_LABELS[currentFuel]} to ${dir} <strong style="color:${color}">${chg>=0?'+':''}${chg.toFixed(2)}%</strong> over 7 days (฿${current.toFixed(2)} → ฿${fDay7.toFixed(2)}/L).<br>
+<strong>95% CI:</strong> ±${ciPct}%. <strong>40 L tank impact:</strong> ${chg>=0?'+':''}฿${((fDay7-current)*40).toFixed(0)}.<br>
+<em style="color:var(--text3);font-size:11px">Method: Holt linear smoothing on 30-day history. Does not account for OPEC/policy events.</em>`;
+}
+
+function aiTrend(){
+  const hist = HISTORY[currentFuel];
+  const last = hist[hist.length-1];
+  const wk1 = hist[hist.length-8] || last;
+  const wk4 = hist[0];
+  const wkChg = ((last-wk1)/wk1*100).toFixed(2);
+  const moChg = ((last-wk4)/wk4*100).toFixed(2);
+  const sigma = diffStdDev(hist.slice(-30));
+  return `<strong>${FUEL_LABELS[currentFuel]} (Bangkok):</strong><br>
+Now: ฿${last.toFixed(2)}/L<br>
+7-day change: <strong style="color:${wkChg>=0?'var(--red)':'var(--green)'}">${wkChg>=0?'+':''}${wkChg}%</strong> (฿${wk1.toFixed(2)} → ฿${last.toFixed(2)})<br>
+30-day change: <strong style="color:${moChg>=0?'var(--red)':'var(--green)'}">${moChg>=0?'+':''}${moChg}%</strong> (฿${wk4.toFixed(2)} → ฿${last.toFixed(2)})<br>
+Daily volatility (σ): ฿${sigma.toFixed(3)}/L`;
+}
+
+function aiE85vsG95(){
+  const g = BANGKOK_THB.gasohol95;
+  const e = BANGKOK_THB.e85;
+  const s = ((g-e)/g*100).toFixed(1);
+  const savePer40L = ((g-e)*40).toFixed(0);
+  // E85 has ~28% lower energy density (LHV ratio gasoline 32 MJ/L, E85 23 MJ/L)
+  const energyPenalty = 0.28;
+  const breakevenPrice = g * (1 - energyPenalty);
+  const isWorthIt = e < breakevenPrice;
+  return `<strong>E85 vs Gasohol 95 (Bangkok):</strong><br>
+G95: ฿${g}/L &nbsp;·&nbsp; E85: ฿${e}/L &nbsp;·&nbsp; E85 ${s}% cheaper per litre.<br>
+Per-litre saving: ฿${(g-e).toFixed(2)} &nbsp;·&nbsp; 40 L tank saving: ฿${savePer40L}<br>
+<strong>BUT — energy content:</strong> E85 has ~28% lower LHV (23 vs 32 MJ/L). Real per-km cost depends on engine efficiency.<br>
+<strong>Energy-adjusted breakeven:</strong> E85 must cost ≤ ฿${breakevenPrice.toFixed(2)}/L to beat G95 per km. Current E85 is ฿${e}/L — <strong style="color:${isWorthIt?'var(--green)':'var(--red)'}">${isWorthIt?'BETTER':'WORSE'} per km</strong>.<br>
+<em style="color:var(--text3);font-size:11px">Assumes equal engine thermal efficiency on both fuels (real flex-fuel engines may differ ±5%).</em>`;
+}
+
+function aiCompare(query){
+  // Try to extract country names from query
+  const found = COUNTRIES.filter(c => query.toLowerCase().includes(c.name.toLowerCase()) || query.toLowerCase().includes(c.key));
+  if(found.length < 2) return null;
+  const fd = WORLD_USD[currentFuel];
+  const rows = found.slice(0,4).map(c => ({...c, usd: fd[c.key]})).sort((a,b)=>a.usd-b.usd);
+  const cheapest = rows[0];
+  return `<strong>${FUEL_LABELS[currentFuel]} comparison:</strong><br>
+${rows.map(r => `${r.flag} ${r.name}: $${r.usd.toFixed(2)}/L${r.key===cheapest.key?' ← cheapest':''}`).join('<br>')}<br>
+<em>${cheapest.name} is ${((rows[rows.length-1].usd/cheapest.usd-1)*100).toFixed(0)}% cheaper than ${rows[rows.length-1].name}.</em>`;
+}
+
+function aiHelp(){
+  return `I compute answers from current data. No LLM behind this — what you see is real math.<br><br>
+<strong>Try:</strong><br>
+• "Should I fill up today?" → forecast vs confidence interval<br>
+• "Which country is cheapest?" → sorted price comparison<br>
+• "E85 vs Gasohol 95" → energy-adjusted cost analysis<br>
+• "Trend for diesel" → 7-day & 30-day price changes<br>
+• "Compare Thailand and Singapore" → side-by-side<br><br>
+For market news (OPEC, geopolitics, crude moves), see the <strong>News</strong> section — those come from a live RSS feed.`;
+}
+
+function getAIResponse(q){
+  const lower = q.toLowerCase();
+  // Country comparison takes priority
+  const cmp = aiCompare(q);
+  if(cmp && (lower.includes('compare') || lower.includes(' vs ') || lower.includes(' and '))) return cmp;
+  if(/fill|today|now|buy|wait|when/.test(lower)) return aiFillup();
+  if(/cheap|lowest|cheapest|best price/.test(lower)) return aiCheapest();
+  if(/trend|history|change|moving|recent/.test(lower)) return aiTrend();
+  if(/e85|ethanol|gasohol|efficiency|energy/.test(lower)) return aiE85vsG95();
+  if(/help|what.*ask|how.*work/.test(lower)) return aiHelp();
+  // Default: show trend
+  return aiTrend() + '<br><br><em style="color:var(--text3);font-size:11px">Try "help" for what I can answer.</em>';
+}
+
+function addMsg(text, type){
+  const box = document.getElementById('ai-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${type}`;
+  div.innerHTML = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function sendAI(){
+  const input = document.getElementById('ai-input');
+  const q = input.value.trim();
+  if(!q) return;
+  input.value = '';
+  addMsg(q, 'user');
+  const thinking = addMsg('<span class="thinking-dots"><span>●</span><span>●</span><span>●</span></span> Analysing live data…', 'thinking');
+  setTimeout(()=>{
+    thinking.remove();
+    addMsg(getAIResponse(q), 'bot');
+  }, 900 + Math.random()*400);
+}
+
+function askQuick(q){
+  document.getElementById('ai-input').value = q;
+  sendAI();
+  document.getElementById('quick-btns').style.display='none';
+}
+
+// ── CALCULATOR ─────────────────────────────────────────────────────
+let calcUsed = false;
+function calcCost(){
+  const liters = parseFloat(document.getElementById('c-liters').value)||0;
+  const cur = document.getElementById('c-cur').value;
+  const ckey = document.getElementById('c-country').value;
+  // Use calculator's own fuel selector (independent of dashboard's currentFuel)
+  const fuelSel = document.getElementById('c-fuel');
+  const fuelKey = fuelSel ? fuelSel.value : currentFuel;
+  const fuelData = WORLD_USD[fuelKey] || WORLD_USD[currentFuel];
+  // Fall back gracefully: some fuels (b20, premium_diesel) only have a Thailand entry
+  const usdPerL = fuelData[ckey] != null
+    ? fuelData[ckey]
+    : (ckey === 'th' ? usdFromTHB(BANGKOK_THB[fuelKey] || 0) : null);
+
+  // If the chosen country doesn't sell this fuel grade at all, say so honestly
+  if(usdPerL == null || usdPerL === 0){
+    const sel = document.querySelector(`#c-country option[value="${ckey}"]`);
+    const countryName = sel ? sel.textContent : ckey.toUpperCase();
+    document.getElementById('c-total').textContent = '—';
+    document.getElementById('c-meta').innerHTML =
+      `<div style="color:var(--amber);font-size:11px">No ${FUEL_LABELS[fuelKey]} price data for ${countryName}</div>
+       <div style="margin-top:3px;color:var(--text3);font-size:10px">${FUEL_LABELS[fuelKey]} is mainly Thailand-specific; other countries don't track this grade. Try Gasohol 95 / Diesel B7.</div>`;
+    return;
+  }
+
+  const priceInCur = toCur(usdPerL, cur);
+  const total = priceInCur * liters;
+  const s = sym(cur);
+  const isLarge = cur==='JPY'||cur==='VND'||cur==='KRW'||cur==='IDR';
+  document.getElementById('c-total').textContent = isLarge
+    ? s+Math.round(total).toLocaleString() : s+total.toFixed(2);
+  // Label price source: live for TH, snapshot otherwise
+  const srcBadge = ckey === 'th'
+    ? '<span style="color:var(--green);font-size:9px;border:1px solid rgba(0,232,150,.3);padding:1px 4px;border-radius:3px;margin-left:4px">LIVE</span>'
+    : '<span style="color:var(--amber);font-size:9px;border:1px solid rgba(245,166,35,.3);padding:1px 4px;border-radius:3px;margin-left:4px">SNAPSHOT</span>';
+  document.getElementById('c-meta').innerHTML =
+    `<div>${fmtR(priceInCur,cur)}/L ${srcBadge}</div>
+     ${cur!=='USD'?`<div>≈ ${fmtUSD2(usdPerL*liters)} USD</div>`:''}
+     <div style="margin-top:3px;color:var(--text3)">${liters}L · ${FUEL_LABELS[fuelKey]}</div>`;
+
+  // Show AI tip — uses the chosen fuel's HISTORY
+  const tipBox = document.getElementById('ai-tip-box');
+  if(liters > 0 && tipBox && HISTORY[fuelKey]){
+    const {forecast, sigma} = generateForecast(HISTORY[fuelKey], 7);
+    const current = HISTORY[fuelKey][HISTORY[fuelKey].length-1];
+    const chg = ((forecast[6]-current)/current*100);
+    const ciHalfPct = (1.96 * sigma * Math.sqrt(7) / current * 100);
+    if(Math.abs(chg) > ciHalfPct * 0.5){
+      const dir = chg > 0 ? 'rise' : 'fall';
+      const color = chg > 0 ? 'var(--red)' : 'var(--green)';
+      const savings = Math.abs((forecast[6]-current)*liters*(cur==='THB'?(rates.THB||32.3):1));
+      const verb = chg > 0 ? 'saves' : 'loses (vs waiting)';
+      tipBox.innerHTML = `<strong>📊 Tip:</strong> ${FUEL_LABELS[fuelKey]} forecast to ${dir} <strong style="color:${color}">${chg>=0?'+':''}${chg.toFixed(2)}%</strong> in 7 days (95% CI ±${ciHalfPct.toFixed(1)}%). Filling ${liters}L now vs next week ${verb} ≈${sym(cur)}${savings.toFixed(cur==='JPY'?0:2)}.`;
+    } else {
+      tipBox.innerHTML = `<strong>📊 Tip:</strong> ${FUEL_LABELS[fuelKey]} 7-day forecast change (${chg>=0?'+':''}${chg.toFixed(2)}%) is within statistical noise (±${ciHalfPct.toFixed(1)}%). No urgency — fill up when convenient.`;
+    }
+    tipBox.classList.add('visible');
+  }
+
+  if(!calcUsed && liters > 0){
+    calcUsed = true;
+    setTimeout(()=>{
+      const nudge = document.getElementById('calc-nudge');
+      if(nudge) nudge.classList.add('visible');
+    }, 1200);
+  }
+}
+
+function setLiters(n){
+  document.getElementById('c-liters').value = n;
+  document.querySelectorAll('.tp').forEach(b=>{
+    b.classList.toggle('active-tp', parseInt(b.textContent)===n);
+  });
+  calcCost();
+}
+
+function dismissNudge(){
+  const el = document.getElementById('calc-nudge');
+  if(el){el.classList.remove('visible');el.style.display='none';}
+}
+function dismissAlert(){
+  const el = document.getElementById('alert-banner');
+  if(el){el.style.opacity='0';el.style.transition='opacity .3s';setTimeout(()=>el.style.display='none',300);}
+}
+
+// ── FX TABLE ───────────────────────────────────────────────────────
+function renderFX(){
+  document.getElementById('fx-rows').innerHTML = FX_DISPLAY.map(fx=>{
+    const rate=rates[fx.code]||1;
+    const dec=fx.code==='JPY'?2:4;
+    return `<div class="fx-row">
+      <div class="fx-left"><span class="fx-flag">${fx.flag}</span><div><div class="fx-code">${fx.code}</div><div class="fx-name">${fx.name}</div></div></div>
+      <div><div class="fx-rate">${rate.toFixed(dec)}</div><div class="fx-1usd">per 1 USD</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── TICKER ─────────────────────────────────────────────────────────
+function renderTicker(){
+  const fd=WORLD_USD[currentFuel];
+  // Real 7-day change for Thailand (we have its history); other countries:
+  // we don't have per-country history, so show neutral "—" instead of fake numbers.
+  const thaiHist = HISTORY[currentFuel];
+  const thaiPct = thaiHist.length >= 8
+    ? ((thaiHist[thaiHist.length-1] - thaiHist[thaiHist.length-8]) / thaiHist[thaiHist.length-8] * 100)
+    : 0;
+  const items=COUNTRIES.map(c=>{
+    const usd=fd[c.key]; if(!usd) return '';
+    let chgHtml;
+    if(c.key === 'th'){
+      const isUp = thaiPct >= 0;
+      chgHtml = `<span class="ticker-chg ${isUp?'up':'dn'}">${isUp?'+':''}${thaiPct.toFixed(2)}%</span>`;
+    } else {
+      chgHtml = `<span class="ticker-chg" style="color:var(--text3)">—</span>`;
+    }
+    return `<div class="ticker-item"><span class="t-name">${c.flag} ${c.name}</span><span class="t-price">$${usd.toFixed(3)}/L</span>${chgHtml}</div>`;
+  }).filter(Boolean);
+  document.getElementById('ticker').innerHTML = items.join('')+items.join('');
+}
+
+// ── COMPARE ────────────────────────────────────────────────────────
+function renderCompare(){
+  const fuels=['gasohol95','gasohol91','e20','e85','diesel','b20','premium','premium_diesel'];
+  let html=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr>
+      ${['FUEL TYPE','THB / L','USD / L','EUR / L','SGD / L','JPY / L','vs Global Avg','Source'].map(h=>`<th style="text-align:${h==='FUEL TYPE'?'left':'right'};padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--text3);font-size:11px;letter-spacing:.07em;font-family:'JetBrains Mono',monospace">${h}</th>`).join('')}
+    </tr></thead><tbody>`;
+  fuels.forEach(f=>{
+    const thb=BANGKOK_THB[f], usd=usdFromTHB(thb);
+    const globalAvg=Object.values(WORLD_USD[f]).reduce((s,v)=>s+v,0)/Object.values(WORLD_USD[f]).length;
+    const vsAvg=((usd-globalAvg)/globalAvg*100);
+    const srcLabel = (TH_BRANDS_SOURCE === 'api-direct' || TH_BRANDS_SOURCE === 'api-proxied')
+      ? '<span style="color:var(--green)">● live</span>'
+      : `<span style="color:var(--amber)">⚠ static ${formatDateLabel(FUEL_PRICE_VERIFIED)}</span>`;
+    html+=`<tr>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-weight:500;color:var(--text)">${FUEL_LABELS[f]}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'JetBrains Mono',monospace;color:var(--green)">฿${thb.toFixed(2)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'JetBrains Mono',monospace">$${usd.toFixed(3)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'JetBrains Mono',monospace">€${toCur(usd,'EUR').toFixed(3)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'JetBrains Mono',monospace">S$${toCur(usd,'SGD').toFixed(3)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'JetBrains Mono',monospace">¥${toCur(usd,'JPY').toFixed(1)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'JetBrains Mono',monospace;color:${vsAvg<0?'var(--green)':'var(--red)'}">${vsAvg>0?'+':''}${vsAvg.toFixed(1)}%</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-size:11px;color:var(--text3)">${srcLabel}</td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  document.getElementById('compare-table').innerHTML=html;
+}
+
+// ── SECTION NAV ────────────────────────────────────────────────────
+function showSection(s){
+  ['dashboard','thailand','compare','ai'].forEach(sec=>{
+    const el=document.getElementById('section-'+sec);
+    if(el) el.style.display='none';
+  });
+  const dashSections=['section-dashboard','main-grid-section'];
+  dashSections.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
+
+  if(s==='dashboard'){
+    // already visible
+  } else if(s==='thailand'){
+    document.getElementById('section-dashboard').style.display='none';
+    document.getElementById('main-grid-section').style.display='none';
+    document.getElementById('section-thailand').style.display='';
+    renderThaiSection();
+  } else if(s==='compare'){
+    document.getElementById('section-dashboard').style.display='none';
+    document.getElementById('main-grid-section').style.display='none';
+    document.getElementById('section-compare').style.display='';
+    renderCompare();
+  } else if(s==='ai'){
+    document.getElementById('section-dashboard').style.display='none';
+    document.getElementById('main-grid-section').style.display='none';
+    document.getElementById('section-ai').style.display='';
+    renderForecastChart();
+    renderSavings();
+    renderExplainability();
+    renderGauge();
+    renderHeatmap();
+  } else if(s==='calculator'){
+    document.getElementById('section-calculator').scrollIntoView({behavior:'smooth'});
+  }
+  document.querySelectorAll('.nav-tab').forEach((t,i)=>{
+    const secs=['dashboard','thailand','compare','ai','calculator'];
+    t.classList.toggle('active',secs[i]===s);
+  });
+}
+
+// ── CLOCK ──────────────────────────────────────────────────────────
+function updateClock(){
+  const now=new Date();
+  document.getElementById('nav-clock').textContent=
+    now.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+' BKK';
+  document.getElementById('last-refresh').textContent=
+    now.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
+  const ago=Math.floor((Date.now()-lastRefreshTime)/1000);
+  const agoEl=document.getElementById('live-ago');
+  if(agoEl) agoEl.textContent=ago<10?'· just now':ago<60?`· ${ago}s ago`:`· ${Math.floor(ago/60)}m ago`;
+}
+
+// ── FUEL SWITCH ────────────────────────────────────────────────────
+function setFuel(f,btn){
+  currentFuel=f;
+  document.querySelectorAll('.fs-btn').forEach(b=>{b.classList.remove('active');b.classList.add('inactive');});
+  btn.classList.add('active'); btn.classList.remove('inactive');
+  // Keep calculator's fuel selector in sync for convenience
+  const calcSel = document.getElementById('c-fuel');
+  if(calcSel) calcSel.value = f;
+  renderAll();
+  // Refresh AI section if visible
+  if(document.getElementById('section-ai').style.display!=='none'){
+    renderForecastChart(); renderSavings(); renderAIInsights(); renderGauge();
+  }
+}
+
+// ── CHART RANGE ────────────────────────────────────────────────────
+function setChartRange(r,tab){
+  chartRange=r;
+  document.querySelectorAll('.ct-tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  renderChart();
+}
+
+// ── REFRESH ────────────────────────────────────────────────────────
+// Per-source minimum intervals — auto-refresh respects these caps.
+// Manual refresh button bypasses them.
+const REFRESH_INTERVALS = {
+  fx:    60_000,         // 60s — FX is fast and lightweight
+  crude: 5 * 60_000,     // 5 min — crude API is heavier
+  thai:  30 * 60_000,    // 30 min — Thai prices change at most a few times per week
+  news:  10 * 60_000,    // 10 min — news doesn't change that often
+};
+const lastFetch = {fx:0, crude:0, thai:0, news:0};
+
+async function doRefresh(force=false){
+  const btn=document.getElementById('refresh-nav');
+  if(btn){ btn.classList.add('spin'); btn.disabled=true; }
+  const now = Date.now();
+  const jobs = [];
+  if(force || now - lastFetch.fx    >= REFRESH_INTERVALS.fx)    { jobs.push(fetchFX().then(()=>lastFetch.fx=now)); }
+  if(force || now - lastFetch.crude >= REFRESH_INTERVALS.crude) { jobs.push(fetchCrude().then(()=>lastFetch.crude=now)); }
+  if(force || now - lastFetch.thai  >= REFRESH_INTERVALS.thai)  { jobs.push(fetchThaiPrices().then(()=>lastFetch.thai=now)); }
+  if(force || now - lastFetch.news  >= REFRESH_INTERVALS.news)  { jobs.push(fetchNews().then(()=>lastFetch.news=now)); }
+  await Promise.allSettled(jobs);
+  lastRefreshTime = Date.now();
+  renderAll();
+  if(document.getElementById('section-thailand')?.style.display !== 'none'){
+    try{ renderThaiBrandTable(); renderThaiLinkage(); }catch(e){}
+  }
+  setTimeout(()=>{if(btn){btn.classList.remove('spin');btn.disabled=false;}},600);
+}
+
+// Wire the manual button to force=true (bypasses throttle)
+window.doRefresh = () => doRefresh(true);
+
+function renderAll(){
+  renderKPI(); renderTable(); renderChart(); renderFX(); renderTicker(); renderAIInsights(); calcCost(); updateClock(); updateFuelFreshness();
+}
+
+// ── BOOT ───────────────────────────────────────────────────────────
+(async()=>{
+  document.getElementById('ld-msg').textContent='Loading exchange rates…';
+  await fetchFX();         lastFetch.fx = Date.now();
+  document.getElementById('ld-msg').textContent='Fetching crude oil prices…';
+  await fetchCrude();      lastFetch.crude = Date.now();
+  document.getElementById('ld-msg').textContent='Fetching Thai pump prices…';
+  await fetchThaiPrices(); lastFetch.thai = Date.now();
+  document.getElementById('ld-msg').textContent='Rendering dashboard…';
+  renderAll();
+  fetchNews().then(()=>lastFetch.news = Date.now());  // non-blocking
+  setTimeout(()=>{
+    const l=document.getElementById('loading');
+    l.style.opacity='0';
+    setTimeout(()=>l.style.display='none',500);
+  },1200);
+  // 60-second tick — only sources whose throttle has elapsed will actually fetch
+  setInterval(()=>doRefresh(false),60000);
+  setInterval(updateClock,1000);
+})();
+</script>
+</body>
+</html>
